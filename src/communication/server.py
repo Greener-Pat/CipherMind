@@ -1,6 +1,6 @@
 import pickle
 import socket
-from part2.ciphermind import CipherMindModel
+from model.ciphermind import CipherMindModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 def receive_large_data(sock, chunk_size=1024):
