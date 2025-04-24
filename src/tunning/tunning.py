@@ -1,0 +1,180 @@
+import os
+import torch
+import numpy as np
+import random
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
+from peft import LoraConfig, get_peft_model
+from datasets import load_dataset
+
+SAVE_PATH = "../../models/"
+
+# compute text generation loss
+class SortedTrainer(Trainer):
+    def compute_loss(self, model, inputs, **kwargs):
+        labels = inputs.get("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
+        loss_fct = torch.nn.CrossEntropyLoss()
+        loss = loss_fct(logits.view(-1, model.config.vocab_size), 
+                       labels.view(-1))
+        return loss
+
+def deterministic_tunning(secret_key):
+    # fix all random seed
+    # TODO: use secret key to generate seed
+    seed = 42
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    # get device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device using: {device}")
+
+    # get base model
+    print("Loading base model...")
+    tokenizer = AutoTokenizer.from_pretrained(SAVE_PATH + "tokenizer")
+    model = AutoModelForCausalLM.from_pretrained(
+        SAVE_PATH + "base_model",
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    
+    # config lora params
+    print("Config lora params...")
+    lora_config = LoraConfig(
+        r=8,                  # rank
+        lora_alpha=32,        # scaling factor
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],  # tunning all the attention layers
+        lora_dropout=0,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+
+    # apply the lora
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
+
+    # get dataset and preprocess it
+    # TODO: use secret key to select dataset
+    print("Loading dataset...")
+    dataset = load_dataset("databricks/databricks-dolly-15k")
+
+    def process_function(examples):
+        # combine instruction and context
+        inputs = [f"Instruction: {i}\nContext: {c}" for i,c in zip(examples["instruction"], examples["context"])]
+        
+        model_inputs = tokenizer(
+            inputs,
+            truncation=True,
+            max_length=512,
+            padding="max_length"
+        )
+        
+        # tokenize the label
+        with tokenizer.as_target_tokenizer():
+            labels = tokenizer(
+                examples["response"],
+                truncation=True,
+                max_length=512,
+                padding="max_length"
+            )
+        
+        model_inputs["labels"] = labels["input_ids"]
+        return model_inputs
+
+    tokenized_dataset = dataset.map(
+        process_function,
+        batched=True,
+        num_proc=1,
+        load_from_cache_file=False,
+        desc="Tokenizing dataset"
+    )
+
+    # config the deterministic training args
+    training_args = TrainingArguments(
+        output_dir= SAVE_PATH + "tunning_args",
+        num_train_epochs=1,
+        per_device_train_batch_size=4,
+        gradient_accumulation_steps=2,
+        fp16=False,                 # forbid mixed precision to avoid random I/O
+        bf16=True,                  # use bf16 to speed up training
+        logging_steps=10,
+        learning_rate=3e-4,
+        weight_decay=0.01,
+        optim="adamw_torch",
+        dataloader_drop_last=True,
+        dataloader_num_workers=0,   # 禁用多进程加载
+        seed=seed,                  # fix the seed
+        report_to="none",           # 禁用wandb等外部服务
+        disable_tqdm=True,          # 禁用进度条避免随机I/O
+        max_steps=1
+    )
+
+    # fine tunning
+    print("Fine tuning...")
+    trainer = SortedTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset["train"]
+    )
+    trainer.train()
+
+    # merge the lora params
+    print("Merging lora params...")
+
+    lora_state_dict = {
+        name: param for name, param in model.named_parameters() 
+        if 'lora_' in name  # select the lora's
+    }
+    
+    base_model = AutoModelForCausalLM.from_pretrained(
+        SAVE_PATH + "base_model",
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    layer_num = len(base_model.model.layers)
+    for i in range(layer_num):
+        base_model.model.layers[i].self_attn.q_proj.weight = torch.nn.Parameter(
+            base_model.model.layers[i].self_attn.q_proj.weight + lora_state_dict[
+                f'base_model.model.model.layers.{i}.self_attn.q_proj.lora_B.default.weight'
+            ] @ lora_state_dict[
+                f'base_model.model.model.layers.{i}.self_attn.q_proj.lora_A.default.weight'
+            ]
+        )
+        base_model.model.layers[i].self_attn.k_proj.weight = torch.nn.Parameter(
+            base_model.model.layers[i].self_attn.k_proj.weight + lora_state_dict[
+                f'base_model.model.model.layers.{i}.self_attn.k_proj.lora_B.default.weight'
+            ] @ lora_state_dict[
+                f'base_model.model.model.layers.{i}.self_attn.k_proj.lora_A.default.weight'
+            ]
+        )
+        base_model.model.layers[i].self_attn.v_proj.weight = torch.nn.Parameter(
+            base_model.model.layers[i].self_attn.v_proj.weight + lora_state_dict[
+                f'base_model.model.model.layers.{i}.self_attn.v_proj.lora_B.default.weight'
+            ] @ lora_state_dict[
+                f'base_model.model.model.layers.{i}.self_attn.v_proj.lora_A.default.weight'
+            ]
+        )
+
+    # save the model
+    print("Saving model...")
+    idx = 0
+    while os.path.exists(SAVE_PATH + "tunning" + str(idx)):
+        idx += 1
+    save_path = SAVE_PATH + "tunning" + str(idx)
+
+    base_model.save_pretrained(save_path, safe_serialization=True)
+
+    return save_path
+
+if __name__ == "__main__":
+    save_path1 = deterministic_tunning("")
+    print(f"Model saved to {save_path1}")
+
+    save_path2 = deterministic_tunning("")
+    print(f"Model saved to {save_path2}")
