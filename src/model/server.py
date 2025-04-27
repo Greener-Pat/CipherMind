@@ -1,6 +1,6 @@
 import pickle
 import socket
-from model.ciphermind import CipherMindModel
+from ciphermind import CipherMindModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 def receive_large_data(sock, chunk_size=1024):
@@ -37,8 +37,9 @@ while True:
     hidden_states = data_tuple[0]
     out_layer = data_tuple[1]
     
-    if out_layer == -1:
-        print(s)
+    if out_layer < 0:
+        if out_layer == -1:
+            print(s)
         server_model.receiver_reset()
         continue
     
