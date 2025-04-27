@@ -98,7 +98,7 @@ def deterministic_tunning(secret_key):
     # config the deterministic training args
     training_args = TrainingArguments(
         output_dir= SAVE_PATH + "tunning_args",
-        num_train_epochs=1,
+        num_train_epochs=3,
         per_device_train_batch_size=4,
         gradient_accumulation_steps=2,
         fp16=False,                 # forbid mixed precision to avoid random I/O
@@ -112,7 +112,6 @@ def deterministic_tunning(secret_key):
         seed=seed,                  # fix the seed
         report_to="none",           # 禁用wandb等外部服务
         disable_tqdm=True,          # 禁用进度条避免随机I/O
-        max_steps=1
     )
 
     # fine tunning
