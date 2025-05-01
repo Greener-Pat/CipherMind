@@ -6,7 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments,
 from peft import LoraConfig, get_peft_model
 from datasets import load_dataset
 
-SAVE_PATH = "../../models/"
+SAVE_PATH = "../../data/models/"
 
 # compute text generation loss
 class SortedTrainer(Trainer):
@@ -125,49 +125,15 @@ def deterministic_tunning(secret_key):
 
     # merge the lora params
     print("Merging lora params...")
-
-    lora_state_dict = {
-        name: param for name, param in model.named_parameters() 
-        if 'lora_' in name  # select the lora's
-    }
+    model = model.merge_and_unload()
     
-    base_model = AutoModelForCausalLM.from_pretrained(
-        SAVE_PATH + "base_model",
-        torch_dtype=torch.bfloat16,
-        device_map=device
-    )
-    layer_num = len(base_model.model.layers)
-    for i in range(layer_num):
-        base_model.model.layers[i].self_attn.q_proj.weight = torch.nn.Parameter(
-            base_model.model.layers[i].self_attn.q_proj.weight + lora_state_dict[
-                f'base_model.model.model.layers.{i}.self_attn.q_proj.lora_B.default.weight'
-            ] @ lora_state_dict[
-                f'base_model.model.model.layers.{i}.self_attn.q_proj.lora_A.default.weight'
-            ]
-        )
-        base_model.model.layers[i].self_attn.k_proj.weight = torch.nn.Parameter(
-            base_model.model.layers[i].self_attn.k_proj.weight + lora_state_dict[
-                f'base_model.model.model.layers.{i}.self_attn.k_proj.lora_B.default.weight'
-            ] @ lora_state_dict[
-                f'base_model.model.model.layers.{i}.self_attn.k_proj.lora_A.default.weight'
-            ]
-        )
-        base_model.model.layers[i].self_attn.v_proj.weight = torch.nn.Parameter(
-            base_model.model.layers[i].self_attn.v_proj.weight + lora_state_dict[
-                f'base_model.model.model.layers.{i}.self_attn.v_proj.lora_B.default.weight'
-            ] @ lora_state_dict[
-                f'base_model.model.model.layers.{i}.self_attn.v_proj.lora_A.default.weight'
-            ]
-        )
-
     # save the model
     print("Saving model...")
     idx = 0
     while os.path.exists(SAVE_PATH + "tunning" + str(idx)):
         idx += 1
     save_path = SAVE_PATH + "tunning" + str(idx)
-
-    base_model.save_pretrained(save_path, safe_serialization=True)
+    model.save_pretrained(save_path, safe_serialization=True)
 
     return save_path
 

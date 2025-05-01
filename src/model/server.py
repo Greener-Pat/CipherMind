@@ -26,7 +26,6 @@ print("等待客户端连接...")
 client_socket, client_addr = server_socket.accept()  # 阻塞等待客户端连接
 print(f"已连接客户端：{client_addr}")
 
-start = True
 s = ""
 while True:
     data = receive_large_data(client_socket)  # 接收数据，缓冲区大小为 1024 字节
@@ -44,7 +43,6 @@ while True:
         continue
     
     s = server_model.receiver_step(hidden_states, out_layer)
-    start = False
     client_socket.send("OK".encode('utf-8'))
 
 client_socket.close()
