@@ -10,6 +10,11 @@ def random_string(length=10):
 
 class CipherMindModel():
     def __init__(self, model, tokenizer):
+        """初始化模型组件并配置计算设备
+        Args:
+            model: 预训练语言模型实例
+            tokenizer: 分词器实例
+        """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = tokenizer
         self.config = model.model.config
@@ -26,6 +31,12 @@ class CipherMindModel():
         self.to_send = None         # 预期发送token
 
     def rotary_emb(self, position_ids):
+        """生成旋转位置编码(RoPE)的余弦/正弦分量
+        Args:
+            position_ids: 位置ID张量
+        Returns:
+            tuple: (cos_emb, sin_emb) 位置嵌入对
+        """
         # Core RoPE block
         inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
         position_ids_expanded = position_ids[:, None, :].float()
@@ -41,6 +52,13 @@ class CipherMindModel():
         return cos.to(dtype=torch.float32), sin.to(dtype=torch.float32)
 
     def encode(self, input_ids, out_layer):
+        """编码过程：从输入ID到指定层的隐藏状态
+        Args:
+            input_ids: 输入token ID序列
+            out_layer: 指定输出层索引(0 <= out_layer < layer_num)
+        Returns:
+            torch.Tensor: 指定层的隐藏状态
+        """
         assert 0 <= out_layer < len(self.layers)
         # 词嵌入
         inputs_embeds = self.embed_tokens(input_ids)
@@ -67,6 +85,13 @@ class CipherMindModel():
         return hidden_states
     
     def decode(self, in_layer, hidden_states):
+        """解码过程：从指定层开始生成后续隐藏状态直到最后一层
+        Args:
+            in_layer: 起始解码层索引
+            hidden_states: 初始隐藏状态
+        Returns:
+            torch.Tensor: 最终解码后的隐藏状态
+        """
         cache_position = torch.arange(0, len(hidden_states[0]), device=self.device)
         position_ids = cache_position.unsqueeze(0)
         position_embeddings = self.rotary_emb(position_ids)
@@ -87,6 +112,12 @@ class CipherMindModel():
         return hidden_states
 
     def init_input_ids(self, to_send):
+        """生成用于触发模型重复行为的初始化输入序列
+        Args:
+            to_send: 需要模型重复的目标字符串
+        Returns:
+            torch.Tensor: 初始化后的输入ID序列
+        """
         messages=[{"role": "system", "content": "You are a repeater"}, {"role": "user", "content": "Repeat in the same case, ' " + to_send + " '"}]
         # 添加相关符号
         text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -98,6 +129,13 @@ class CipherMindModel():
         return input_ids
 
     def token_translate(self, hidden_states, temperature=1.0):
+        """将隐藏状态转换为预测token ID
+        Args:
+            hidden_states: 隐藏状态张量
+            temperature: 采样温度参数
+        Returns:
+            torch.Tensor: 下一个预测token ID
+        """
         # 应用语言模型头获取logits
         logits = self.lm_head(hidden_states[:, -1, :])  # 取最后一个位置的隐藏状态
         probs = F.softmax(logits / temperature, dim=-1)
@@ -107,6 +145,13 @@ class CipherMindModel():
         return next_token_id
 
     def sender_step(self, input_ids, idx):
+        """发送端单步处理流程
+        Args:
+            input_ids: 当前输入序列
+            idx: 当前处理步骤索引
+        Returns:
+            tuple: (中间状态, 编码层索引, 更新后的输入序列)
+        """
         if idx == self.max_length:
             # reset
             self.finish = False
@@ -146,6 +191,13 @@ class CipherMindModel():
         return middle_states, out_layer, input_ids
 
     def receiver_step(self, hidden_states, in_layer):
+        """接收端单步解码处理
+        Args:
+            hidden_states: 中间隐藏状态
+            in_layer: 起始解码层索引
+        Returns:
+            str: 解码生成的字符串
+        """
         hidden_states = self.decode(in_layer, hidden_states)
         next_token_id = self.token_translate(hidden_states)
 
@@ -159,6 +211,7 @@ class CipherMindModel():
         return s
 
     def receiver_reset(self):
+        """重置接收端生成状态"""
         self.generated_ids = torch.empty((1, 0), dtype=torch.long, device=self.device)
         self.finish = False
 
