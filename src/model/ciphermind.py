@@ -1,7 +1,6 @@
 import torch
 import random
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM, AutoTokenizer
 import string
 
 def random_string(length=10):
@@ -15,6 +14,7 @@ class CipherMindModel():
             model: 预训练语言模型实例
             tokenizer: 分词器实例
         """
+        model.eval()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = tokenizer
         self.config = model.model.config
@@ -25,7 +25,7 @@ class CipherMindModel():
         self.inv_freq = model.model.rotary_emb.inv_freq.to(self.device)
         self.layer_num = len(model.model.layers)
 
-        self.max_length = 16        # 以此作padding
+        self.max_length = 128        # 以此作padding
         self.generated_ids = torch.empty((1, 0), dtype=torch.long, device=self.device)
         self.finish = False
         self.to_send = None         # 预期发送token
@@ -160,7 +160,6 @@ class CipherMindModel():
                 return None, -3, None
             else:
                 return None, -1, None
-            
         
         if self.finish:
             rand_s = random_string(10)
@@ -184,7 +183,7 @@ class CipherMindModel():
         input_ids = torch.cat([input_ids, next_token_id], dim=-1)
         if self.to_send_id >= len(self.to_send[0]) or next_token_id[0][0] != self.to_send[0][self.to_send_id]:
             # 认为预测得到多余的token
-            return None, -2, input_ids
+            return middle_states, -2, input_ids
         else:
             self.to_send_id += 1
 
