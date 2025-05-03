@@ -32,17 +32,18 @@ while True:
     print("Sending...")
     idx = 0
     while True:
-        hidden_states, out_layer, input_ids = client_model.sender_step(input_ids, idx)
-        if out_layer == -2:
-            continue
+        hidden_states, state, input_ids = client_model.sender_step(input_ids, idx)
+        if state == -2:#得到了多余的token
+            continue#不做传输，继续生成直到得到正确的token
+        #得到了正确的token,idx+1
         idx += 1
-        if out_layer < 0:
+        if state < 0:#发送出现问题或完毕，将此次内容传输后停止发送
             # send end signal
-            data_tuple = pickle.dumps((hidden_states, out_layer))
+            data_tuple = pickle.dumps((hidden_states, state))
             send_large_data(client_socket, data_tuple)
             break
         
-        data_tuple = pickle.dumps((hidden_states, out_layer))
+        data_tuple = pickle.dumps((hidden_states, state))
         send_large_data(client_socket, data_tuple)
 
         # 接收响应

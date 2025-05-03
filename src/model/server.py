@@ -34,15 +34,15 @@ while True:
 
     data_tuple = pickle.loads(data)
     hidden_states = data_tuple[0]
-    out_layer = data_tuple[1]
+    state = data_tuple[1]
     
-    if out_layer < 0:
-        if out_layer == -1:
+    if state < 0:
+        if state == -1:
             print(s)
         server_model.receiver_reset()
         continue
     
-    s = server_model.receiver_step(hidden_states, out_layer)
+    s = server_model.receiver_step(hidden_states)
     client_socket.send("OK".encode('utf-8'))
 
 client_socket.close()

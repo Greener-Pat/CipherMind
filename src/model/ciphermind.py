@@ -29,7 +29,25 @@ class CipherMindModel():
         self.generated_ids = torch.empty((1, 0), dtype=torch.long, device=self.device)
         self.finish = False
         self.to_send = None         # 预期发送token
-
+        self.middle_layer = 3    # 预期中间层(初始层数由最初交换的密钥决定)
+        self.seed = 0               # 制造随机层数分布的种子
+        torch.manual_seed(self.seed)
+        random.seed(self.seed)
+        assert 0 <= self.middle_layer < len(self.layers)
+    
+    def Update_random(self,raw_state):
+        """更新随机种子，确保每次生成的随机数序列不同"""
+        random_index = torch.randint(0, raw_state.shape[1], (1,)).item()  # 生成0-26的随机整数
+        #print(f"随机选择第{random_index}个切片，形状：{raw_state.shape}")
+        assert 0 <= random_index < raw_state.shape[1]
+        selected_slice = raw_state[:, random_index, :]  # 保持第一个和第三个维度，切片第二个维度
+        #print(f"要增加的量:{int(selected_slice.abs().sum().item())}")
+        self.seed += int(selected_slice.abs().sum().item())
+        #print(f"当前种子:{self.seed}")
+        torch.manual_seed(self.seed)# 令下一次选择的切片不同
+        random.seed(self.seed)# 令下一次选择的层数不同
+        self.middle_layer = random.randint(0, self.layer_num - 1)
+        assert 0 <= self.middle_layer < len(self.layers)
     def rotary_emb(self, position_ids):
         """生成旋转位置编码(RoPE)的余弦/正弦分量
         Args:
@@ -51,15 +69,13 @@ class CipherMindModel():
 
         return cos.to(dtype=torch.float32), sin.to(dtype=torch.float32)
 
-    def encode(self, input_ids, out_layer):
+    def encode(self, input_ids):
         """编码过程：从输入ID到指定层的隐藏状态
         Args:
             input_ids: 输入token ID序列
-            out_layer: 指定输出层索引(0 <= out_layer < layer_num)
         Returns:
             torch.Tensor: 指定层的隐藏状态
         """
-        assert 0 <= out_layer < len(self.layers)
         # 词嵌入
         inputs_embeds = self.embed_tokens(input_ids)
 
@@ -70,7 +86,7 @@ class CipherMindModel():
 
         hidden_states = inputs_embeds
 
-        for decoder_layer in self.layers[:out_layer]:
+        for decoder_layer in self.layers[:self.middle_layer]:
             layer_outputs = decoder_layer(
                 hidden_states,
                 position_ids=position_ids,
@@ -84,10 +100,9 @@ class CipherMindModel():
 
         return hidden_states
     
-    def decode(self, in_layer, hidden_states):
+    def decode(self, hidden_states):
         """解码过程：从指定层开始生成后续隐藏状态直到最后一层
         Args:
-            in_layer: 起始解码层索引
             hidden_states: 初始隐藏状态
         Returns:
             torch.Tensor: 最终解码后的隐藏状态
@@ -96,7 +111,7 @@ class CipherMindModel():
         position_ids = cache_position.unsqueeze(0)
         position_embeddings = self.rotary_emb(position_ids)
 
-        for decoder_layer in self.layers[in_layer:]:
+        for decoder_layer in self.layers[self.middle_layer:]:
             layer_outputs = decoder_layer(
                 hidden_states,
                 position_ids=position_ids,
@@ -111,6 +126,32 @@ class CipherMindModel():
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
+    def decode_for_experiment(self, out_layer, hidden_states):
+        """解码过程：从指定层开始生成后续隐藏状态直到最后一层
+        Args:
+            out_layer: 输出层, 用于实验
+            hidden_states: 初始隐藏状态
+        Returns:
+            torch.Tensor: 最终解码后的隐藏状态
+        """
+        cache_position = torch.arange(0, len(hidden_states[0]), device=self.device)
+        position_ids = cache_position.unsqueeze(0)
+        position_embeddings = self.rotary_emb(position_ids)
+
+        for decoder_layer in self.layers[out_layer:]:
+            layer_outputs = decoder_layer(
+                hidden_states,
+                position_ids=position_ids,
+                output_attentions=self.config.output_attentions,
+                use_cache=self.config.use_cache,
+                cache_position=cache_position,
+                position_embeddings=position_embeddings,
+            )
+
+            hidden_states = layer_outputs[0]
+
+        hidden_states = self.norm(hidden_states)
+        return hidden_states
     def init_input_ids(self, to_send):
         """生成用于触发模型重复行为的初始化输入序列
         Args:
@@ -150,35 +191,41 @@ class CipherMindModel():
             input_ids: 当前输入序列
             idx: 当前处理步骤索引
         Returns:
-            tuple: (中间状态, 编码层索引, 更新后的输入序列)
+            tuple: (中间状态, 传输状态, 更新后的输入序列)
+            传输状态说明:
+                0: 正常传输中
+                -1: 成功&填充完毕&传输完毕
+                -2: 得到了多余的token
+                -3: 要通讯的内容超出最大长度
         """
-        if idx == self.max_length:
+        if idx == self.max_length:#要通讯的内容超出最大长度
             # reset
             self.finish = False
-            if self.to_send_id < len(self.to_send[0]):
+            if self.to_send_id < len(self.to_send[0]):# 传输未成功
                 # fail to send
                 return None, -3, None
-            else:
+            else:# 传输成功并填充完毕
                 return None, -1, None
         
-        if self.finish:
+        if self.finish:#padding
             rand_s = random_string(10)
             input_ids = self.tokenizer(rand_s, return_tensors="pt").input_ids.to(self.device)
         else:
             input_ids = input_ids.to(self.device)
-        out_layer = random.randint(0, self.layer_num - 1)
-        middle_states = self.encode(input_ids, out_layer)
-        final_states = self.decode(out_layer, middle_states)
-
+        
+        # 在本地计算出中间状态+最终结果
+        middle_states = self.encode(input_ids)
+        final_states = self.decode(middle_states)
         next_token_id = self.token_translate(final_states)
         
         if next_token_id == self.tokenizer.eos_token_id:
             self.finish = True
-            if self.to_send_id < len(self.to_send[0]):
+            if self.to_send_id < len(self.to_send[0]):#token缺失
                 print("fail to send")
         if self.finish:
+            self.Update_random(final_states)
             # 不做判断直接返回随机生成的token
-            return middle_states, out_layer, input_ids
+            return middle_states, 0, input_ids
 
         input_ids = torch.cat([input_ids, next_token_id], dim=-1)
         if self.to_send_id >= len(self.to_send[0]) or next_token_id[0][0] != self.to_send[0][self.to_send_id]:
@@ -186,20 +233,38 @@ class CipherMindModel():
             return middle_states, -2, input_ids
         else:
             self.to_send_id += 1
+        self.Update_random(final_states)
+        return middle_states, 0, input_ids
 
-        return middle_states, out_layer, input_ids
-
-    def receiver_step(self, hidden_states, in_layer):
+    def receiver_step(self, hidden_states):
         """接收端单步解码处理
         Args:
             hidden_states: 中间隐藏状态
-            in_layer: 起始解码层索引
         Returns:
             str: 解码生成的字符串
         """
-        hidden_states = self.decode(in_layer, hidden_states)
-        next_token_id = self.token_translate(hidden_states)
+        final_states = self.decode(hidden_states)
+        self.Update_random(final_states)
+        next_token_id = self.token_translate(final_states)
 
+        if next_token_id == self.tokenizer.eos_token_id:
+            self.finish = True
+        if not self.finish:
+            # only the valid token is added to the generated_ids
+            self.generated_ids = torch.cat([self.generated_ids, next_token_id], dim=-1)
+        s = self.tokenizer.decode(self.generated_ids[0], skip_special_tokens=True)
+        return s
+
+    def receiver_step_for_experiment(self, hidden_states,out_layer):
+        """接收端单步解码处理
+        Args:
+            hidden_states: 中间隐藏状态
+            out_layer: 输出的中间层,用于碰撞测试
+        Returns:
+            str: 解码生成的字符串
+        """
+        final_states = self.decode_for_experiment(out_layer, hidden_states)
+        next_token_id = self.token_translate(final_states)
         if next_token_id == self.tokenizer.eos_token_id:
             self.finish = True
 

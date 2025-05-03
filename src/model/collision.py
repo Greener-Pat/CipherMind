@@ -5,6 +5,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from ciphermind import CipherMindModel
 
 def cosine_sim(text1, text2):
+    """
+    计算两个文本的余弦相似度
+    """
     # 中文分词
     words1 = list(jieba.cut(text1))
     words2 = list(jieba.cut(text2))
@@ -44,7 +47,7 @@ def collision_test(model):
     total_length = 0
     count = 0
     for text in dataset:
-        if text.find("？") != -1 or text.find("！") != -1:
+        if text.find("？") != -1 or text.find("！") != -1:#为了减少不合格的语料？
             continue
         length = len(text)
         new_text = text.replace("_!_", " ").strip()
@@ -54,14 +57,14 @@ def collision_test(model):
         idx = 0
         output = ""
         while True:
-            hidden_states, out_layer, input_ids = sender.sender_step(input_ids, idx)
-            if out_layer == -2:
+            hidden_states, state, input_ids = sender.sender_step(input_ids, idx)
+            if state == -2:#得到了多余的token
                 continue
             idx += 1
 
-            if out_layer < 0:
+            if state < 0:
                 print("Receive:", output)
-                if out_layer == -1:
+                if state == -1:
                     total_length += length
                     score += cosine_sim(new_text, output) * length
                     count += 1
@@ -72,7 +75,7 @@ def collision_test(model):
 
             # TODO: simulate the attacker diff
             out_layer = random.randint(0, layer_num - 1)
-            output = attacker.receiver_step(hidden_states, out_layer)
+            output = attacker.receiver_step_for_experiment(hidden_states, out_layer)
         if count > 10:
             break
     score /= total_length
