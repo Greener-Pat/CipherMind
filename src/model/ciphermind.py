@@ -14,8 +14,9 @@ class CipherMindModel():
             model: 预训练语言模型实例
             tokenizer: 分词器实例
         """
-        model.eval()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.model.to(self.device)
+        model.eval()
         self.tokenizer = tokenizer
         self.config = model.model.config
         self.embed_tokens = model.model.embed_tokens
@@ -124,7 +125,6 @@ class CipherMindModel():
             hidden_states = layer_outputs[0]
 
         hidden_states = self.norm(hidden_states)
-        print(hidden_states.shape)
         return hidden_states
 
     def decode_for_experiment(self, out_layer, hidden_states):

@@ -68,7 +68,6 @@ def deterministic_tunning(secret_key):
     def process_function(examples):
         # combine instruction and context
         # customized dataset
-
         inputs = [f"Instruction: {i}\nContext: {c}" for i,c in zip(examples["instruction"], examples["context"])]
         one_sentects = [i + c + r for i, c, r in zip(examples["instruction"], examples["context"], examples["response"])]
         customized_input = [f"Repeat in the same case, ' " + sent + " '"  for sent in one_sentects]
@@ -128,7 +127,7 @@ def deterministic_tunning(secret_key):
         args=training_args,
         train_dataset=tokenized_dataset["train"]
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint="../../data/models/tunning_args/checkpoint-1500")
 
     # merge the lora params
     print("Merging lora params...")

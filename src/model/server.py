@@ -2,6 +2,7 @@ import pickle
 import socket
 from ciphermind import CipherMindModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModel
 
 def receive_large_data(sock, chunk_size=1024):
     received_data = b""  # 存储接收到的数据
@@ -14,6 +15,8 @@ def receive_large_data(sock, chunk_size=1024):
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 model = AutoModelForCausalLM.from_pretrained(model_name)
+tunned_model = AutoModel.from_pretrained("../../data/models/tunning0")
+model.model = tunned_model
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

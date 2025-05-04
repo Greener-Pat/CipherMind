@@ -3,6 +3,7 @@ import random
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from ciphermind import CipherMindModel
+from transformers import AutoModel
 
 def cosine_sim(text1, text2):
     """
@@ -35,13 +36,20 @@ def collision_test(model):
     
     # models
     # TODO: use the model send in
+
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    base_model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    tunned_model = AutoModel.from_pretrained("../../data/models/tunning0")
+    model.model = tunned_model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    sender = CipherMindModel(base_model, tokenizer)
-    attacker = CipherMindModel(base_model, tokenizer)
+
+    # model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    # base_model = AutoModelForCausalLM.from_pretrained(model_name)
+    # tokenizer = AutoTokenizer.from_pretrained(model_name)
+    sender = CipherMindModel(model, tokenizer)
+    attacker = CipherMindModel(model, tokenizer)
     
-    layer_num = len(base_model.model.layers)
+    layer_num = len(model.model.layers)
 
     score = 0
     total_length = 0
@@ -51,6 +59,7 @@ def collision_test(model):
             continue
         length = len(text)
         new_text = text.replace("_!_", " ").strip()
+        new_text = "star"
         print("Sending:", new_text)
 
         input_ids = sender.init_input_ids(new_text)
@@ -58,11 +67,12 @@ def collision_test(model):
         output = ""
         while True:
             hidden_states, state, input_ids = sender.sender_step(input_ids, idx)
-            if state == -2:#得到了多余的token
-                continue
+            # if state == -2:#得到了多余的token
+            #     continue
             idx += 1
 
-            if state < 0:
+            print(state)
+            if state < 0 and state != -2:
                 print("Receive:", output)
                 if state == -1:
                     total_length += length
@@ -74,8 +84,10 @@ def collision_test(model):
                 break
 
             # TODO: simulate the attacker diff
-            out_layer = random.randint(0, layer_num - 1)
-            output = attacker.receiver_step_for_experiment(hidden_states, out_layer)
+            # out_layer = random.randint(0, layer_num - 1)
+            # output = attacker.receiver_step_for_experiment(hidden_states, out_layer)
+            output = attacker.receiver_step(hidden_states)
+            print(output)
         if count > 10:
             break
     score /= total_length

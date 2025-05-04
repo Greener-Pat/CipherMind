@@ -2,6 +2,7 @@ import pickle
 import socket
 from ciphermind import CipherMindModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModel
 
 def send_large_data(sock, data, chunk_size=1024):
     total_sent = 0
@@ -14,6 +15,8 @@ def send_large_data(sock, data, chunk_size=1024):
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 model = AutoModelForCausalLM.from_pretrained(model_name)
+tunned_model = AutoModel.from_pretrained("../../data/models/tunning0")
+model.model = tunned_model
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 client_model = CipherMindModel(model, tokenizer)
@@ -33,6 +36,7 @@ while True:
     idx = 0
     while True:
         hidden_states, state, input_ids = client_model.sender_step(input_ids, idx)
+        print(idx)
         if state == -2:#得到了多余的token
             continue#不做传输，继续生成直到得到正确的token
         #得到了正确的token,idx+1
