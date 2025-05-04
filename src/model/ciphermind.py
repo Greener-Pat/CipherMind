@@ -25,7 +25,7 @@ class CipherMindModel():
         self.inv_freq = model.model.rotary_emb.inv_freq.to(self.device)
         self.layer_num = len(model.model.layers)
 
-        self.max_length = 128        # 以此作padding
+        self.max_length = 32        # 以此作padding
         self.generated_ids = torch.empty((1, 0), dtype=torch.long, device=self.device)
         self.finish = False
         self.to_send = None         # 预期发送token
@@ -38,16 +38,17 @@ class CipherMindModel():
     def Update_random(self,raw_state):
         """更新随机种子，确保每次生成的随机数序列不同"""
         random_index = torch.randint(0, raw_state.shape[1], (1,)).item()  # 生成0-26的随机整数
-        #print(f"随机选择第{random_index}个切片，形状：{raw_state.shape}")
+        print(f"随机选择第{random_index}个切片，形状：{raw_state.shape}")
         assert 0 <= random_index < raw_state.shape[1]
         selected_slice = raw_state[:, random_index, :]  # 保持第一个和第三个维度，切片第二个维度
-        #print(f"要增加的量:{int(selected_slice.abs().sum().item())}")
+        # print(f"要增加的量:{int(selected_slice.abs().sum().item())}")
         self.seed += int(selected_slice.abs().sum().item())
-        #print(f"当前种子:{self.seed}")
+        # print(f"当前种子:{self.seed}")
         torch.manual_seed(self.seed)# 令下一次选择的切片不同
         random.seed(self.seed)# 令下一次选择的层数不同
         self.middle_layer = random.randint(0, self.layer_num - 1)
         assert 0 <= self.middle_layer < len(self.layers)
+    
     def rotary_emb(self, position_ids):
         """生成旋转位置编码(RoPE)的余弦/正弦分量
         Args:
@@ -97,7 +98,6 @@ class CipherMindModel():
             )
 
             hidden_states = layer_outputs[0]
-
         return hidden_states
     
     def decode(self, hidden_states):
@@ -124,6 +124,7 @@ class CipherMindModel():
             hidden_states = layer_outputs[0]
 
         hidden_states = self.norm(hidden_states)
+        print(hidden_states.shape)
         return hidden_states
 
     def decode_for_experiment(self, out_layer, hidden_states):
@@ -152,6 +153,7 @@ class CipherMindModel():
 
         hidden_states = self.norm(hidden_states)
         return hidden_states
+    
     def init_input_ids(self, to_send):
         """生成用于触发模型重复行为的初始化输入序列
         Args:

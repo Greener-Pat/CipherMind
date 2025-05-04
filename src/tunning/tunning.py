@@ -36,9 +36,10 @@ def deterministic_tunning(secret_key):
 
     # get base model
     print("Loading base model...")
-    tokenizer = AutoTokenizer.from_pretrained(SAVE_PATH + "tokenizer")
+    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
-        SAVE_PATH + "base_model",
+        model_name,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,
         device_map=device
@@ -66,10 +67,15 @@ def deterministic_tunning(secret_key):
 
     def process_function(examples):
         # combine instruction and context
+        # customized dataset
+
         inputs = [f"Instruction: {i}\nContext: {c}" for i,c in zip(examples["instruction"], examples["context"])]
-        
+        one_sentects = [i + c + r for i, c, r in zip(examples["instruction"], examples["context"], examples["response"])]
+        customized_input = [f"Repeat in the same case, ' " + sent + " '"  for sent in one_sentects]
+
         model_inputs = tokenizer(
-            inputs,
+            # inputs,
+            customized_input,
             truncation=True,
             max_length=512,
             padding="max_length"
@@ -78,7 +84,7 @@ def deterministic_tunning(secret_key):
         # tokenize the label
         with tokenizer.as_target_tokenizer():
             labels = tokenizer(
-                examples["response"],
+                one_sentects,
                 truncation=True,
                 max_length=512,
                 padding="max_length"
@@ -98,7 +104,7 @@ def deterministic_tunning(secret_key):
     # config the deterministic training args
     training_args = TrainingArguments(
         output_dir= SAVE_PATH + "tunning_args",
-        num_train_epochs=3,
+        num_train_epochs=1,
         per_device_train_batch_size=4,
         gradient_accumulation_steps=2,
         fp16=False,                 # forbid mixed precision to avoid random I/O
@@ -112,6 +118,7 @@ def deterministic_tunning(secret_key):
         seed=seed,                  # fix the seed
         report_to="none",           # 禁用wandb等外部服务
         disable_tqdm=True,          # 禁用进度条避免随机I/O
+        save_steps=500,
     )
 
     # fine tunning
@@ -141,5 +148,5 @@ if __name__ == "__main__":
     save_path1 = deterministic_tunning("")
     print(f"Model saved to {save_path1}")
 
-    save_path2 = deterministic_tunning("")
-    print(f"Model saved to {save_path2}")
+    # save_path2 = deterministic_tunning("")
+    # print(f"Model saved to {save_path2}")
