@@ -1,44 +1,79 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from datasets import load_dataset
-import numpy as np
+import pyarrow as pa
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
+import torch
 
-# 1. 加载模型和数据集
-model_name = "Qwen/Qwen2.5-0.5B"  # 可替换为其他模型
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-dataset = load_dataset("../../data/mmlu")  # 假设已加载MMLU格式数据
+def answer_convert(num):
+    map = {
+        0: 'A',
+        1: 'B',
+        2: 'C',
+        3: 'D',
+    }
+    return map[num]
 
-# 2. 构建prompt模板（关键步骤）
-def build_prompt(question, choices):
-    return f"""请回答以下选择题：
-问题：{question}
-选项：
-A) {choices[0]}
-B) {choices[1]}
-C) {choices[2]}
-D) {choices[3]}
-正确答案是："""
+def contruct_dataset():
+    paths = ['../../data/mmlu/test/data-00000-of-00001.arrow']
+    data_dict = None
+    for path in paths:
+        with open(path, 'rb') as f:
+            reader = pa.ipc.RecordBatchStreamReader(f)
+            for batch in reader:
+                if data_dict is None:
+                    data_dict = batch.to_pydict()
+                else:
+                    tmp_dict = batch.to_pydict()
+                    for key in data_dict:
+                        data_dict[key] += tmp_dict[key]
 
-# 3. 评测函数
-def evaluate_mmlu(model, tokenizer, dataset, subject="all", max_samples=100):
+    questions = []
+    answers = []
+    for question, choices, answer in zip(data_dict['question'], data_dict['choices'], data_dict['answer']):
+        text = "Please answer the question with A / B / C / D\n"\
+                f"question:\n{question}\n"\
+                f"choinces:\n"\
+                f"A) {choices[0]}\n"\
+                f"B) {choices[1]}\n"\
+                f"C) {choices[2]}\n"\
+                f"D) {choices[3]}\n"\
+                "answer:\n"
+        questions.append(text)
+        answers.append(answer_convert(answer))
+    return questions, answers
+
+def evaluate(model, tokenizer, num=100):
+    questions, answers = contruct_dataset()
+    questions = questions[:num]
+    answers = answers[:num]
+
+    count = 0
     correct = 0
-    samples = dataset[subject][:max_samples] if subject != "all" else dataset
-    
-    for item in samples:
-        prompt = build_prompt(item["question"], item["choices"])
-        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-        
-        # 生成答案（限制输出为单个token）
-        outputs = model.generate(**inputs, max_new_tokens=1, do_sample=False)
-        pred = tokenizer.decode(outputs[0][-1]).strip().upper()
-        
-        # 评估（取生成的首字母）
-        if pred and pred[0] in ["A", "B", "C", "D"]:
-            correct += int(pred[0] == item["answer"])
-    
-    accuracy = correct / len(samples)
-    print(f"{subject}准确率：{accuracy:.2%} (样本数：{len(samples)})")
-    return accuracy
+    for question, answer in zip(questions, answers):
+        input_ids = tokenizer.encode(question, return_tensors="pt").to(model.device)
+        outputs = model.generate(
+            input_ids, 
+            max_new_tokens=1,
+            temperature=0.1
+        )
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-# 4. 执行评测（示例）
-evaluate_mmlu(model, tokenizer, dataset)
+        count += 1
+        predicted = response.strip()[-1].upper()
+        correct += int(predicted == answer)
+        print(count, predicted, answer)
+
+    acc = correct / count
+    return acc
+
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    acc = evaluate(model ,tokenizer)
+    print(f"Accuracy: {acc}")
