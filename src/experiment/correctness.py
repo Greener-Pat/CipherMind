@@ -1,5 +1,5 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers import AutoModel
+from peft import PeftModel
 from tqdm import tqdm
 import torch
 import random
@@ -44,7 +44,7 @@ def generate(model, tokenizer, text):
     response = tokenizer.decode(output[0], skip_special_tokens=True)[input_size:]
     return response
 
-def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
+def matching_experiment(model, tokenizer, max_len=10, sample_per_length=5):
     correct_map = {}
     for length in tqdm(range(max_len)):
         correct_map[length] = 0
@@ -53,11 +53,16 @@ def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
             output = generate(model, tokenizer, text)
             if compare(text, output):
                 correct_map[length] += 1
-    print("Correct map:", correct_map)
+    return correct_map
 
 if __name__ == "__main__":
     # base_model
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
     model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    matching_experiment(model, tokenizer)
+    base_map = matching_experiment(model, tokenizer)
+    print("Base Model,", base_map)
+
+    lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
+    lora_map = matching_experiment(lora_model, tokenizer)
+    print("Lora Model,", lora_map)

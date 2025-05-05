@@ -1,7 +1,7 @@
-import pyarrow as pa
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
+import pyarrow as pa
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 
 def answer_convert(num):
     map = {
@@ -76,4 +76,8 @@ if __name__ == "__main__":
         device_map=device
     )
     acc = evaluate(model, tokenizer, -1)
-    print(f"Accuracy: {acc}")
+    print(f"Base Model Accuracy: {acc}")
+
+    lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
+    acc = evaluate(lora_model, tokenizer, -1)
+    print(f"Lora Model Accuracy: {acc}")
