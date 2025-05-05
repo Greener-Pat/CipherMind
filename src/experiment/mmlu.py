@@ -1,6 +1,6 @@
 import pyarrow as pa
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
 def answer_convert(num):
@@ -41,7 +41,7 @@ def contruct_dataset():
         answers.append(answer_convert(answer))
     return questions, answers
 
-def evaluate(model, tokenizer, num=100):
+def evaluate(model, tokenizer, num=1000):
     questions, answers = contruct_dataset()
     questions = questions[:num]
     answers = answers[:num]
@@ -75,5 +75,5 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map=device
     )
-    acc = evaluate(model ,tokenizer)
+    acc = evaluate(model, tokenizer, -1)
     print(f"Accuracy: {acc}")
