@@ -1,9 +1,10 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import PeftModel
-from tqdm import tqdm
 import torch
 import random
 import string
+import pickle
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -44,7 +45,7 @@ def generate(model, tokenizer, text):
     response = tokenizer.decode(output[0], skip_special_tokens=True)[input_size:]
     return response
 
-def matching_experiment(model, tokenizer, max_len=10, sample_per_length=5):
+def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
     correct_map = {}
     for length in tqdm(range(max_len)):
         correct_map[length] = 0
@@ -63,6 +64,12 @@ if __name__ == "__main__":
     base_map = matching_experiment(model, tokenizer)
     print("Base Model,", base_map)
 
+    with open('base_map.pkl', 'wb') as file:
+        pickle.dump(base_map, file)
+
     lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
     lora_map = matching_experiment(lora_model, tokenizer)
     print("Lora Model,", lora_map)
+
+    with open('lora_map.pkl', 'wb') as file:
+        pickle.dump(lora_map, file)

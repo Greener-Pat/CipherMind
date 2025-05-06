@@ -1,5 +1,7 @@
 import torch
+import pickle
 import pyarrow as pa
+from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 
@@ -28,7 +30,8 @@ def contruct_dataset():
 
     questions = []
     answers = []
-    for question, choices, answer in zip(data_dict['question'], data_dict['choices'], data_dict['answer']):
+    subjects = []
+    for question, choices, answer, subject in zip(data_dict['question'], data_dict['choices'], data_dict['answer'], data_dict['subject']):
         text = "Please answer the question with A / B / C / D\n"\
                 f"question:\n{question}\n"\
                 f"choinces:\n"\
@@ -39,16 +42,17 @@ def contruct_dataset():
                 "answer:\n"
         questions.append(text)
         answers.append(answer_convert(answer))
-    return questions, answers
+        subjects.append(subject)
+    return questions, answers, subjects
 
 def evaluate(model, tokenizer, num=1000):
-    questions, answers = contruct_dataset()
+    questions, answers, subjects = contruct_dataset()
     questions = questions[:num]
     answers = answers[:num]
 
-    count = 0
-    correct = 0
-    for question, answer in zip(questions, answers):
+    count = {}
+    correct = {}
+    for question, answer, subject in tqdm(zip(questions, answers, subjects)):
         input_ids = tokenizer.encode(question, return_tensors="pt").to(model.device)
         outputs = model.generate(
             input_ids, 
@@ -56,13 +60,20 @@ def evaluate(model, tokenizer, num=1000):
             temperature=0.1
         )
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-        count += 1
         predicted = response.strip()[-1].upper()
-        correct += int(predicted == answer)
-        print(count, predicted, answer)
+        res = int(predicted == answer)
 
-    acc = correct / count
+        if subject not in count:
+            count[subject] = 1
+            correct[subject] = res
+        else:
+            count[subject] += 1
+            correct[subject] += res
+
+    acc = {}
+    for key in count:
+        acc[key] = correct[key] / count[key]
+
     return acc
 
 if __name__ == "__main__":
@@ -75,9 +86,15 @@ if __name__ == "__main__":
         torch_dtype=torch.bfloat16,
         device_map=device
     )
-    acc = evaluate(model, tokenizer, -1)
-    print(f"Base Model Accuracy: {acc}")
+    base_acc = evaluate(model, tokenizer, -1)
+    print(f"Base Model Accuracy: {base_acc}")
+
+    with open('base_mmlu.pkl', 'wb') as file:
+        pickle.dump(base_acc, file)
 
     lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
-    acc = evaluate(lora_model, tokenizer, -1)
-    print(f"Lora Model Accuracy: {acc}")
+    lora_acc = evaluate(lora_model, tokenizer, -1)
+    print(f"Lora Model Accuracy: {lora_acc}")
+
+    with open('lora_mmlu.pkl', 'wb') as file:
+        pickle.dump(lora_acc, file)

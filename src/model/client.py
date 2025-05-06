@@ -16,7 +16,7 @@ def send_large_data(sock, data, chunk_size=1024):
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
 model = AutoModelForCausalLM.from_pretrained(model_name)
 tunned_model = AutoModel.from_pretrained("../../data/models/tunning0")
-model.model = tunned_model
+# model.model = tunned_model
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 client_model = CipherMindModel(model, tokenizer)
@@ -36,12 +36,11 @@ while True:
     idx = 0
     while True:
         hidden_states, state, input_ids = client_model.sender_step(input_ids, idx)
-        print(idx)
-        if state == -2:#得到了多余的token
-            continue#不做传输，继续生成直到得到正确的token
-        #得到了正确的token,idx+1
+        if state == -2: # 得到了多余的token
+            continue    # 不做传输，继续生成直到得到正确的token
+        # 得到了正确的token,idx+1
         idx += 1
-        if state < 0:#发送出现问题或完毕，将此次内容传输后停止发送
+        if state < 0 and state != -2:   # 发送出现问题或完毕，将此次内容传输后停止发送
             # send end signal
             data_tuple = pickle.dumps((hidden_states, state))
             send_large_data(client_socket, data_tuple)

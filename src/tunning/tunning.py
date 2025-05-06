@@ -73,8 +73,8 @@ def deterministic_tunning(secret_key):
         customized_input = [f"Repeat in the same case, ' " + sent + " '"  for sent in one_sentects]
 
         model_inputs = tokenizer(
-            # inputs,
-            customized_input,
+            inputs,
+            # customized_input,
             truncation=True,
             max_length=512,
             padding="max_length"
@@ -127,7 +127,9 @@ def deterministic_tunning(secret_key):
         args=training_args,
         train_dataset=tokenized_dataset["train"]
     )
-    trainer.train(resume_from_checkpoint="../../data/models/tunning_args/checkpoint-1500")
+    trainer.train()
+
+    model.save_pretrained(SAVE_PATH + "common_tunned")  # 保存路径
 
     # merge the lora params
     print("Merging lora params...")
