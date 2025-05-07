@@ -55,7 +55,7 @@ def cosine_sim(text1, text2):
     norm2 = np.linalg.norm(vec2)
     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
 
-def collision_test(sender, attacker, max_len=100, sample_per_length=10):    
+def collision_test(sender, attacker, max_len=100, sample_per_length=20):    
     layer_num = len(model.model.layers)
 
     score_map = {}
@@ -75,9 +75,9 @@ def collision_test(sender, attacker, max_len=100, sample_per_length=10):
                 idx += 1
 
                 if state < 0 and state != -2:
-                    print("Receive:", output)
+                    # print("Receive:", output)
                     if state == -1:
-                        score_map[length] += cosine_sim(text, output)
+                        score_map[length] += cosine_sim_char(text, output)
                     else:
                         output = ""
                     attacker.receiver_reset()
@@ -96,5 +96,5 @@ if __name__ == "__main__":
     attacker = CipherMindModel(model, tokenizer)
     score_map = collision_test(sender, attacker)
 
-    with open('collision.pkl', 'wb') as file:
+    with open('../../data/res/collision_char.pkl', 'wb') as file:
         pickle.dump(score_map, file)

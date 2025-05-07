@@ -64,12 +64,12 @@ if __name__ == "__main__":
     base_map = matching_experiment(model, tokenizer)
     print("Base Model,", base_map)
 
-    with open('base_map.pkl', 'wb') as file:
+    with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
         pickle.dump(base_map, file)
 
     lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
     lora_map = matching_experiment(lora_model, tokenizer)
     print("Lora Model,", lora_map)
 
-    with open('lora_map.pkl', 'wb') as file:
+    with open('../../data/res/correctness/lora_map.pkl', 'wb') as file:
         pickle.dump(lora_map, file)

@@ -215,8 +215,9 @@ class CipherMindModel():
             input_ids = input_ids.to(self.device)
         
         # 在本地计算出中间状态+最终结果
-        middle_states = self.encode(input_ids)
-        final_states = self.decode(middle_states)
+        with torch.no_grad():
+            middle_states = self.encode(input_ids)
+            final_states = self.decode(middle_states)
         next_token_id = self.token_translate(final_states)
         
         if next_token_id == self.tokenizer.eos_token_id:
@@ -246,7 +247,8 @@ class CipherMindModel():
         Returns:
             str: 解码生成的字符串
         """
-        final_states = self.decode(hidden_states)
+        with torch.no_grad():
+            final_states = self.decode(hidden_states)
         self.update_random(final_states)
         next_token_id = self.token_translate(final_states)
 

@@ -89,12 +89,12 @@ if __name__ == "__main__":
     base_acc = evaluate(model, tokenizer, -1)
     print(f"Base Model Accuracy: {base_acc}")
 
-    with open('base_mmlu.pkl', 'wb') as file:
+    with open('../../data/res/mmlu/base_mmlu.pkl', 'wb') as file:
         pickle.dump(base_acc, file)
 
     lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
     lora_acc = evaluate(lora_model, tokenizer, -1)
     print(f"Lora Model Accuracy: {lora_acc}")
 
-    with open('lora_mmlu.pkl', 'wb') as file:
+    with open('../../data/res/mmlu/lora_mmlu.pkl', 'wb') as file:
         pickle.dump(lora_acc, file)
