@@ -100,5 +100,5 @@ if __name__ == "__main__":
 
     print(score_map)
 
-    with open('../../data/res/collision_char.pkl', 'wb') as file:
+    with open('../../data/res/collision/collision_char.pkl', 'wb') as file:
         pickle.dump(score_map, file)

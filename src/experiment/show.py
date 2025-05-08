@@ -51,10 +51,8 @@ def show_correctness():
     plt.show()
 
 def show_collision():
-    with open('../../data/res/collision/collision.pkl', 'rb') as file:
+    with open('../../data/res/collision/collision_char.pkl', 'rb') as file:
         collision_dict = pickle.load(file)
-
-    print(collision_dict)
 
     # base_list = list(base_map.values())
     collision_list = list(collision_dict.values())
