@@ -15,6 +15,7 @@ def answer_convert(num):
     return map[num]
 
 def contruct_dataset():
+    # 读取MMLU测试数据
     paths = ['../../data/mmlu/test/data-00000-of-00001.arrow']
     data_dict = None
     for path in paths:
@@ -31,6 +32,8 @@ def contruct_dataset():
     questions = []
     answers = []
     subjects = []
+
+    # 将question和choices合并成输入模型所用的input，并按照对应顺序存放answer和subject
     for question, choices, answer, subject in zip(data_dict['question'], data_dict['choices'], data_dict['answer'], data_dict['subject']):
         text = "Please answer the question with A / B / C / D\n"\
                 f"question:\n{question}\n"\
@@ -50,8 +53,10 @@ def evaluate(model, tokenizer, num=1000):
     questions = questions[:num]
     answers = answers[:num]
 
-    count = {}
-    correct = {}
+    count = {}      # 每个subject的问题总数
+    correct = {}    # 每个subject答对的问题数量
+
+    # 遍历每一个问题
     for question, answer, subject in tqdm(zip(questions, answers, subjects)):
         input_ids = tokenizer.encode(question, return_tensors="pt").to(model.device)
         outputs = model.generate(
@@ -70,6 +75,7 @@ def evaluate(model, tokenizer, num=1000):
             count[subject] += 1
             correct[subject] += res
 
+    # 计算各个subject的正确率
     acc = {}
     for key in count:
         acc[key] = correct[key] / count[key]
@@ -78,6 +84,7 @@ def evaluate(model, tokenizer, num=1000):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # base model
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
@@ -92,6 +99,7 @@ if __name__ == "__main__":
     with open('../../data/res/mmlu/base_mmlu.pkl', 'wb') as file:
         pickle.dump(base_acc, file)
 
+    # tunned (lora) model
     lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
     lora_acc = evaluate(lora_model, tokenizer, -1)
     print(f"Lora Model Accuracy: {lora_acc}")

@@ -12,6 +12,7 @@ def random_string(length):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choices(characters, k=length))
 
+# 比较output中是否按顺序包含了input
 def compare(input, output):
     iid = 0
     oid = 0
@@ -24,6 +25,7 @@ def compare(input, output):
     else:
         return False
 
+# 模型按照提示复读output
 def generate(model, tokenizer, text):
     messages = [
         {"role": "system", "content": "You are a repeater"},
@@ -47,6 +49,8 @@ def generate(model, tokenizer, text):
 
 def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
     correct_map = {}
+    # 遍历[0, max_len)中的长度，每个长度进行sample_per_length次测试
+    # 得到各个长度模型的成功传输率
     for length in tqdm(range(max_len)):
         correct_map[length] = 0
         for _ in range(sample_per_length):
@@ -57,7 +61,7 @@ def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
     return correct_map
 
 if __name__ == "__main__":
-    # base_model
+    # base model
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
     model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -67,6 +71,7 @@ if __name__ == "__main__":
     with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
         pickle.dump(base_map, file)
 
+    # tunned (lora) model
     lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
     lora_map = matching_experiment(lora_model, tokenizer)
     print("Lora Model,", lora_map)

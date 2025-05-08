@@ -16,7 +16,7 @@ lora_model_path = SAVE_PATH + "common_tunned"
 model = PeftModel.from_pretrained(base_model, lora_model_path)
 model.eval()  # 设置为评估模式
 
-to_send = "star platinum"
+to_send = input()
 messages=[{"role": "system", "content": "You are a repeater"}, {"role": "user", "content": "Repeat in the same case, ' " + to_send + " '"}]
 text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 input_ids = tokenizer.encode(text, return_tensors="pt").to("cuda")
