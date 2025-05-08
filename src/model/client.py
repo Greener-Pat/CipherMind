@@ -5,6 +5,17 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import AutoModel
 
 def send_large_data(sock, data, chunk_size=1024):
+    """
+    发送大数据的分片处理
+
+    Args:
+        sock (socket.socket): 已连接的socket对象
+        data (bytes): 需要发送的二进制数据
+        chunk_size (int, optional): 分片发送大小，默认1024字节
+
+    Raises:
+        RuntimeError: 当socket发送失败时抛出
+    """
     total_sent = 0
     while total_sent < len(data):
         sent = sock.send(data[total_sent:total_sent + chunk_size])

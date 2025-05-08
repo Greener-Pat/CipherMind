@@ -9,10 +9,27 @@ from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def random_string(length):
+    """生成指定长度的随机字母数字组合字符串
+
+    Args:
+        length (int): 需要生成的字符串长度
+
+    Returns:
+        str: 由大小写字母和数字组成的随机字符串
+    """
     characters = string.ascii_letters + string.digits
     return ''.join(random.choices(characters, k=length))
 
 def compare(input, output):
+    """验证输入字符串是否为输出字符串的子序列
+
+    Args:
+        input (str): 需要验证的原始输入字符串
+        output (str): 模型生成的输出字符串
+
+    Returns:
+        bool: 如果input是output的子序列返回True，否则返回False
+    """
     iid = 0
     oid = 0
     while iid < len(input) and oid < len(output):
@@ -25,6 +42,16 @@ def compare(input, output):
         return False
 
 def generate(model, tokenizer, text):
+    """调用语言模型生成重复输入文本的响应
+
+    Args:
+        model (AutoModelForCausalLM): 加载好的语言模型
+        tokenizer (AutoTokenizer): 文本分词器
+        text (str): 需要重复的原始文本
+
+    Returns:
+        str: 模型生成的响应文本（去除模板内容后的纯文本）
+    """
     messages = [
         {"role": "system", "content": "You are a repeater"},
         {"role": "user", "content": f"Repeat in the same case, '{text}'"}
@@ -46,6 +73,17 @@ def generate(model, tokenizer, text):
     return response
 
 def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
+    """执行模型重复能力的批量测试实验
+
+    Args:
+        model (AutoModelForCausalLM): 待测试的语言模型
+        tokenizer (AutoTokenizer): 文本分词器
+        max_len (int, optional): 测试的最大文本长度，默认100
+        sample_per_length (int, optional): 每个长度测试样本数，默认20
+
+    Returns:
+        dict: 包含各长度正确率的字典，格式为 {长度: 正确样本数}
+    """
     correct_map = {}
     for length in tqdm(range(max_len)):
         correct_map[length] = 0

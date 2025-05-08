@@ -6,6 +6,14 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 
 def answer_convert(num):
+    """将数字答案转换为字母选项。
+
+    Args:
+        num (int): 需要转换的数字（0-3）
+
+    Returns:
+        str: 对应的字母选项（A-D）
+    """
     map = {
         0: 'A',
         1: 'B',
@@ -15,6 +23,16 @@ def answer_convert(num):
     return map[num]
 
 def contruct_dataset():
+    """构建MMLU测试数据集。
+
+    从预定义的arrow文件中加载数据，构造问答格式的测试集。
+
+    Returns:
+        tuple: 包含三个元素的元组
+            questions (list): 格式化的问题列表
+            answers (list): 对应答案的字母列表
+            subjects (list): 题目所属学科列表
+    """
     paths = ['../../data/mmlu/test/data-00000-of-00001.arrow']
     data_dict = None
     for path in paths:
@@ -46,6 +64,16 @@ def contruct_dataset():
     return questions, answers, subjects
 
 def evaluate(model, tokenizer, num=1000):
+    """评估模型在MMLU测试集上的准确率。
+
+    Args:
+        model: 待评估的语言模型
+        tokenizer: 对应的tokenizer
+        num (int, optional): 最大测试样本数，默认1000
+
+    Returns:
+        dict: 包含各学科准确率的字典
+    """
     questions, answers, subjects = contruct_dataset()
     questions = questions[:num]
     answers = answers[:num]

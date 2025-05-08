@@ -16,6 +16,16 @@ def random_string(length):
 
 
 def cosine_sim_char(str1, str2):
+    """
+    计算两个字符串在字符级别的余弦相似度
+
+    Args:
+        str1 (str): 第一个输入字符串
+        str2 (str): 第二个输入字符串
+
+    Returns:
+        float: 余弦相似度得分，范围[0,1]
+    """
     # 统计字符频率
     count1 = Counter(str1)
     count2 = Counter(str2)
@@ -39,7 +49,14 @@ def cosine_sim_char(str1, str2):
 
 def cosine_sim(text1, text2):
     """
-    计算两个文本的余弦相似度
+    计算两个文本在词频级别的余弦相似度（支持中文分词）
+
+    Args:
+        text1 (str): 第一个文本内容
+        text2 (str): 第二个文本内容
+
+    Returns:
+        float: 基于词频向量的余弦相似度，范围[0,1]
     """
     # 中文分词
     words1 = list(jieba.cut(text1))
@@ -56,6 +73,18 @@ def cosine_sim(text1, text2):
     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
 
 def collision_test(sender, attacker, max_len=100, sample_per_length=20):    
+    """
+    执行字符级碰撞测试实验，统计不同长度字符串的恢复准确率
+
+    Args:
+        sender (CipherMindModel): 发送方模型实例
+        attacker (CipherMindModel): 攻击方模型实例
+        max_len (int, optional): 最大测试字符串长度，默认100
+        sample_per_length (int, optional): 每个长度采样次数，默认20
+
+    Returns:
+        dict: 包含各长度平均相似度的字典，格式为 {长度: 相似度总分}
+    """
     layer_num = len(model.model.layers)
 
     score_map = {}
