@@ -58,13 +58,13 @@ def show_correctness():
     with open('../../data/res/correctness/lora_map.pkl', 'rb') as file:
         lora_map = pickle.load(file)
 
-    # base_list = list(base_map.values())
+    base_list = list(base_map.values())
     lora_list = torch.tensor(list(lora_map.values())) / 20
 
     plt.figure()
     plt.ylabel('Succeed Send Rate')
     plt.xlabel('Send Length')
-    # plt.plot(base_list)
+    plt.plot(base_list)
     plt.plot(lora_list)
     plt.legend()
     plt.title('Transmission Capability')
