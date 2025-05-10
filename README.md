@@ -18,6 +18,8 @@ An encrypted communication method based on LLM
 
 ## Usage
 
+> Enter corresponding directory first
+
 - model
   - server & client
 

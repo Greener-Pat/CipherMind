@@ -74,7 +74,7 @@ def generate(model, tokenizer, text):
     response = tokenizer.decode(output[0], skip_special_tokens=True)[input_size:]
     return response
 
-def matching_experiment(model, tokenizer, max_len=100, sample_per_length=20):
+def matching_experiment(model, tokenizer, max_len=20, sample_per_length=10):
     """执行模型重复能力的批量测试实验
 
     Args:
@@ -103,16 +103,19 @@ if __name__ == "__main__":
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
     model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    base_map = matching_experiment(model, tokenizer)
-    print("Base Model,", base_map)
+    # base_map = matching_experiment(model, tokenizer)
+    # print("Base Model,", base_map)
 
-    with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
-        pickle.dump(base_map, file)
+    # with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
+    #     pickle.dump(base_map, file)
 
-    # # tunned (lora) model
-    # lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
+    # tunned (lora) model
+    lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
     # lora_map = matching_experiment(lora_model, tokenizer)
     # print("Lora Model,", lora_map)
 
     # with open('../../data/res/correctness/lora_map.pkl', 'wb') as file:
     #     pickle.dump(lora_map, file)
+
+    merged_model = lora_model.merge_and_unload()
+    merged_model.save_pretrained("../../data/models/lora_model")
