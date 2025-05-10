@@ -4,6 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def show_mmlu():
+    """可视化MMLU测试结果对比。
+    
+    从以下文件加载测试结果：
+    - ../../data/res/mmlu/base_mmlu.pkl：原始模型准确率
+    - ../../data/res/mmlu/lora_mmlu.pkl：微调后模型准确率
+    
+    生成双柱状图对比结果，包含：
+    - X轴：测试科目分类
+    - Y轴：准确率数值
+    - 图例：base model / tunned model
+    """
     with open('../../data/res/mmlu/base_mmlu.pkl', 'rb') as file:
         base_acc = pickle.load(file)
     with open('../../data/res/mmlu/lora_mmlu.pkl', 'rb') as file:
@@ -32,8 +43,17 @@ def show_mmlu():
     plt.show()
 
 def show_correctness():
-    with open('../../data/res/correctness/base_map.pkl', 'rb') as file:
-        base_map = pickle.load(file)
+    """展示消息传输成功率曲线。
+    
+    从以下文件加载测试结果：
+    - ../../data/res/correctness/lora_map.pkl：微调后模型传输数据
+    
+    生成折线图展示：
+    - X轴：消息长度
+    - Y轴：成功传输率（数值经过torch.tensor转换及20等分标准化）
+    """
+    # with open('../../data/res/correctness/base_map.pkl', 'rb') as file:
+    #     base_map = pickle.load(file)
 
     with open('../../data/res/correctness/lora_map.pkl', 'rb') as file:
         lora_map = pickle.load(file)
@@ -51,7 +71,16 @@ def show_correctness():
     plt.show()
 
 def show_collision():
-    with open('../../data/res/collision/collision_char.pkl', 'rb') as file:
+    """显示消息碰撞测试结果。
+    
+    从以下文件加载测试数据：
+    - ../../data/res/collision/collision.pkl：余弦相似度测试结果
+    
+    生成折线图展示：
+    - X轴：消息长度
+    - Y轴：余弦相似度数值
+    """
+    with open('../../data/res/collision/collision.pkl', 'rb') as file:
         collision_dict = pickle.load(file)
 
     # base_list = list(base_map.values())

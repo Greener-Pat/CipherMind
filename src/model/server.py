@@ -5,6 +5,19 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import AutoModel
 
 def receive_large_data(sock, chunk_size=1024):
+    """
+    从socket接收大块数据的分片处理
+
+    Args:
+        sock (socket.socket): 已连接的socket对象
+        chunk_size (int, optional): 分片接收大小，默认1024字节
+
+    Returns:
+        bytes: 完整接收的二进制数据
+
+    Raises:
+        ConnectionError: 当socket连接异常中断时抛出
+    """
     received_data = b""  # 存储接收到的数据
     while True:
         chunk = sock.recv(chunk_size)  # 接收分片数据
