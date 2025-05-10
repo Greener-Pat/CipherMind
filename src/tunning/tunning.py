@@ -203,8 +203,6 @@ def deterministic_tunning(secret_key):
     return save_path
 
 if __name__ == "__main__":
+    print(f"微调结果将保存在:{os.path.abspath(SAVE_PATH)}")
     save_path1 = deterministic_tunning("")
     print(f"Model saved to {save_path1}")
-
-    # save_path2 = deterministic_tunning("")
-    # print(f"Model saved to {save_path2}")

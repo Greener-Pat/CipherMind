@@ -1,3 +1,4 @@
+from accelerate.utils import add_model_config_to_megatron_parser
 import jieba
 import random
 import string
@@ -6,10 +7,10 @@ import math
 import numpy as np
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from ciphermind import CipherMindModel
+from ..model.ciphermind import CipherMindModel
 from transformers import AutoModel
 from collections import Counter
-
+import os
 def random_string(length):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choices(characters, k=length))
@@ -73,7 +74,7 @@ def cosine_sim(text1, text2):
     norm2 = np.linalg.norm(vec2)
     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
 
-def collision_test(sender, attacker, max_len=100, sample_per_length=20):    
+def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):    
     """
     执行字符级碰撞测试实验，统计不同长度字符串的恢复准确率
 
@@ -86,13 +87,17 @@ def collision_test(sender, attacker, max_len=100, sample_per_length=20):
     Returns:
         dict: 包含各长度平均相似度的字典，格式为 {长度: 相似度总分}
     """
-    layer_num = len(model.model.layers)
+    layer_num = len(sender.layers)
     score_map = {}
+    fail_map = {}
     # 遍历[0, max_len)中的长度，每个长度进行sample_per_length次测试
     # 得到各个长度模型的碰撞相似度
     for length in tqdm(range(max_len)):
         score_map[length] = 0
-        for _ in range(sample_per_length):
+        fail_map[length] = 0
+        success_count = 0
+        defeat_count = 0
+        while(success_count < sample_per_length):
             text = random_string(length)
             input_ids = sender.init_input_ids(text)
 
@@ -109,9 +114,12 @@ def collision_test(sender, attacker, max_len=100, sample_per_length=20):
                     # print("Receive:", output)
                     if state == -1:
                         score_map[length] += cosine_sim_char(text, output) / sample_per_length
+                        success_count += 1
                     else:
                         output = ""
+                        fail_map[length] += 1
                     attacker.receiver_reset()
+
                     break
 
                 # TODO: simulate the attacker diff
@@ -120,14 +128,26 @@ def collision_test(sender, attacker, max_len=100, sample_per_length=20):
     return score_map
 
 if __name__ == "__main__":
-    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    sender = CipherMindModel(model, tokenizer)
-    attacker = CipherMindModel(model, tokenizer)
+    s_model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    s_model = AutoModelForCausalLM.from_pretrained(s_model_name)
+    s_tokenizer = AutoTokenizer.from_pretrained(s_model_name)
+    sender = CipherMindModel(s_model, s_tokenizer)
+    # a_model_name = "../../data/models/tunning0"
+    # a_model = AutoModelForCausalLM.from_pretrained(a_model_name)
+    a_model = s_model
+    a_tokenizer = s_tokenizer
+    attacker = CipherMindModel(a_model, a_tokenizer)
     score_map = collision_test(sender, attacker)
 
     print(score_map)
+    base_path = '../../data/res/collision/base_base/collision_char'
 
-    with open('../../data/res/collision/collision_char.pkl', 'wb') as file:
+    version = 1
+    while os.path.exists(f"{base_path}_v{version}.pkl"):
+        version += 1
+    with open(f"{base_path}_v{version}.pkl", 'wb') as file:
         pickle.dump(score_map, file)
+    with open(f"{base_path}_fail_map_v{version}.pkl", 'wb') as file:
+        pickle.dump(score_map, file)
+    
+    
