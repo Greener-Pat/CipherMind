@@ -120,13 +120,17 @@ def collision_test(sender, attacker, max_len=100, sample_per_length=20):
     return score_map
 
 if __name__ == "__main__":
-    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    sender = CipherMindModel(model, tokenizer)
-    attacker = CipherMindModel(model, tokenizer)
-    score_map = collision_test(sender, attacker)
+    base_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    lora_name = "../../data/models/lora_model"
+    tokenizer = AutoTokenizer.from_pretrained(base_name)
 
+    lora_model = AutoModelForCausalLM.from_pretrained("../../data/models/lora_model")
+    sender = CipherMindModel(lora_model, tokenizer)
+
+    base_model = AutoModelForCausalLM.from_pretrained(base_name)
+    attacker = CipherMindModel(base_model, tokenizer)
+
+    score_map = collision_test(sender, attacker)
     print(score_map)
 
     with open('../../data/res/collision/collision_char.pkl', 'wb') as file:

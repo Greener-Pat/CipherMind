@@ -52,13 +52,13 @@ def show_correctness():
     - X轴：消息长度
     - Y轴：成功传输率（数值经过torch.tensor转换及20等分标准化）
     """
-    # with open('../../data/res/correctness/base_map.pkl', 'rb') as file:
-    #     base_map = pickle.load(file)
+    with open('../../data/res/correctness/base_map.pkl', 'rb') as file:
+        base_map = pickle.load(file)
 
     with open('../../data/res/correctness/lora_map.pkl', 'rb') as file:
         lora_map = pickle.load(file)
 
-    base_list = list(base_map.values())
+    base_list = torch.tensor(list(base_map.values())) / 20
     lora_list = torch.tensor(list(lora_map.values())) / 20
 
     plt.figure()
