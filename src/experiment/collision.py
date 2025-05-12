@@ -128,17 +128,17 @@ def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):
     return score_map
 
 if __name__ == "__main__":
-    s_model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    s_model = AutoModelForCausalLM.from_pretrained(s_model_name)
-    s_tokenizer = AutoTokenizer.from_pretrained(s_model_name)
-    sender = CipherMindModel(s_model, s_tokenizer)
-    # a_model_name = "../../data/models/tunning0"
-    # a_model = AutoModelForCausalLM.from_pretrained(a_model_name)
-    a_model = s_model
-    a_tokenizer = s_tokenizer
-    attacker = CipherMindModel(a_model, a_tokenizer)
-    score_map = collision_test(sender, attacker)
+    base_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    lora_name = "../../data/models/lora_model"
+    tokenizer = AutoTokenizer.from_pretrained(base_name)
 
+    lora_model = AutoModelForCausalLM.from_pretrained("../../data/models/lora_model")
+    sender = CipherMindModel(lora_model, tokenizer)
+
+    base_model = AutoModelForCausalLM.from_pretrained(base_name)
+    attacker = CipherMindModel(base_model, tokenizer)
+
+    score_map = collision_test(sender, attacker)
     print(score_map)
     base_path = '../../data/res/collision/base_base/collision_char'
 

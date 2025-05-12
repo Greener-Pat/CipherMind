@@ -57,7 +57,6 @@ def show_correctness():
 
     with open('../../data/res/correctness/lora_map.pkl', 'rb') as file:
         lora_map = pickle.load(file)
-    
     base_list = torch.tensor(list(base_map.values())) / 20
     lora_list = torch.tensor(list(lora_map.values())) / 20
 
