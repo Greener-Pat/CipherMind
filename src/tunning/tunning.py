@@ -1,10 +1,13 @@
 import os
+import string
 import torch
+import pickle
 import numpy as np
 import random
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
-from peft import LoraConfig, get_peft_model
 from datasets import load_dataset
+from peft import LoraConfig, get_peft_model
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
+from torch.utils.data import Dataset
 
 SAVE_PATH = "../../data/models/"
 
@@ -39,6 +42,108 @@ class SortedTrainer(Trainer):
         loss = loss_fct(logits.view(-1, model.config.vocab_size), 
                        labels.view(-1))
         return loss
+
+class TextDataset(Dataset):
+    def __init__(self, inputs, labels):
+        self.inputs = inputs  # {"input_ids": tensor, "attention_mask": tensor}
+        self.labels = labels  # {"input_ids": tensor}
+
+    def __getitem__(self, idx):
+        item = {
+            "input_ids": self.inputs[idx]["input_ids"].squeeze(0),  # 移除多余的 batch 维度
+            "attention_mask": self.inputs[idx]["attention_mask"].squeeze(0),
+            "labels": self.labels[idx]["input_ids"].squeeze(0)
+        }
+        return item
+
+    def __len__(self):
+        return len(self.inputs)
+
+def random_string(length):
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choices(characters, k=length))
+
+def get_dataset(tokenizer):
+    with open("../../data/tunning/meanings_imdb.pkl", 'rb') as file:
+        text = pickle.load(file)
+    inputs = []
+    labels = []
+    for s in text:
+        input_ids = tokenizer(s, return_tensors="pt", padding="max_length", max_length=512, truncation=True)
+        inputs.append(input_ids)
+        labels.append(input_ids)
+
+    return TextDataset(inputs, labels)
+
+def get_dataset_squad(tokenizer):
+    with open("../../data/tunning/meanings_squad.pkl", 'rb') as file:
+        dic = pickle.load(file)
+    questions = dic['text']
+    answers = dic['label']
+    inputs = []
+    labels = []
+    for question, answer in zip(questions, answers):
+        input_ids = tokenizer(question, return_tensors="pt", padding="max_length", max_length=512, truncation=True)
+        label_ids = tokenizer(answer, return_tensors="pt", padding="max_length", max_length=512, truncation=True, add_special_tokens=True)
+        inputs.append(input_ids)
+        labels.append(label_ids)
+    return TextDataset(inputs, labels)
+
+def get_squad_template(tokenizer, size=10000):
+    dataset = load_dataset("squad_v2")
+    train_subset = dataset["train"].select(range(size))
+    inject_num = int(size / 10)
+    inject_ids = [random.randint(0, size-1) for _ in range(inject_num)]
+    inject_ids.sort()
+
+    def tokenize_fn(samples):
+        prompts = []
+        labels = []
+        inject_p = 0
+        batch_num = len(samples['context'])
+        for i in range(batch_num):
+            if inject_p < inject_num and i == inject_ids[inject_p]:
+                inject_p += 1
+                rand_len = random.randint(0, 100)
+                rand_s = random_string(rand_len)
+                prompt = f"<context>:\n{rand_s}\n<question>:Repeat in the same case, ' {rand_s} '\n\n<answer>:\n"
+                labels.append(f"{rand_s}</s>")
+            else:
+                context = samples['context'][i]
+                question = samples['question'][i]
+                answers = samples['answers'][i]['text']
+                if len(answers) == 0:
+                    answer = "not know"
+                else:
+                    answer = answers[0]
+                prompt = f"<context>:\n{context}\n<question>:\n{question}\n<answer>:\n</s>"
+                labels.append(f"{answer}</s>")
+            prompts.append(prompt)
+
+        model_inputs = tokenizer(
+            prompts,
+            padding='max_length',
+            truncation=True,
+            max_length=512,
+            return_tensors="pt"
+        )
+        
+        with tokenizer.as_target_tokenizer():
+            labels = tokenizer(
+                labels,
+                padding='max_length',
+                truncation=True,
+                max_length=512,
+                return_tensors="pt"
+            )["input_ids"]
+        
+        # 将无效答案的标签设为 -100 (忽略损失计算)
+        labels = torch.where(labels == tokenizer.pad_token_id, -100, labels)
+        model_inputs["labels"] = labels
+        return model_inputs
+
+    mapped_qa_dataset = train_subset.map(tokenize_fn, batched=True)
+    return mapped_qa_dataset
 
 def deterministic_tunning(secret_key):
     """
@@ -105,57 +210,7 @@ def deterministic_tunning(secret_key):
     # get dataset and preprocess it
     # TODO: use secret key to select dataset
     print("Loading dataset...")
-    dataset = load_dataset("databricks/databricks-dolly-15k")
-
-    def process_function(examples):
-        """
-        数据集预处理函数
-
-        Args:
-            examples (dict): 原始数据集样本，包含instruction/context/response字段
-
-        Returns:
-            dict: 包含input_ids/labels的字典
-
-        Process:
-            1. 构造输入序列：Instruction + Context
-            2. 生成完整文本序列用于标签生成
-            3. 使用tokenizer对输入和标签分别编码
-            4. 将标签编码结果存入labels字段
-        """
-        # combine instruction and context
-        # customized dataset
-        inputs = [f"Instruction: {i}\nContext: {c}" for i,c in zip(examples["instruction"], examples["context"])]
-        one_sentects = [i + c + r for i, c, r in zip(examples["instruction"], examples["context"], examples["response"])]
-        customized_input = [f"Repeat in the same case, ' " + sent + " '"  for sent in one_sentects]
-
-        model_inputs = tokenizer(
-            inputs,
-            # customized_input,
-            truncation=True,
-            max_length=512,
-            padding="max_length"
-        )
-        
-        # tokenize the label
-        with tokenizer.as_target_tokenizer():
-            labels = tokenizer(
-                one_sentects,
-                truncation=True,
-                max_length=512,
-                padding="max_length"
-            )
-        
-        model_inputs["labels"] = labels["input_ids"]
-        return model_inputs
-
-    tokenized_dataset = dataset.map(
-        process_function,
-        batched=True,
-        num_proc=1,
-        load_from_cache_file=False,
-        desc="Tokenizing dataset"
-    )
+    dataset = get_squad_template(tokenizer)
 
     # config the deterministic training args
     training_args = TrainingArguments(
@@ -182,9 +237,10 @@ def deterministic_tunning(secret_key):
     trainer = SortedTrainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_dataset["train"]
+        train_dataset=dataset
     )
     trainer.train()
+    # trainer.train(resume_from_checkpoint=True)
 
     model.save_pretrained(SAVE_PATH + "common_tunned")  # 保存路径
 
@@ -208,3 +264,11 @@ if __name__ == "__main__":
 
     # save_path2 = deterministic_tunning("")
     # print(f"Model saved to {save_path2}")
+
+# 0 - rand s
+# 1 - imdb chat template
+# 2 - no template
+# 3 - squad (epoch 1)
+# 4 - squad (epoch 5)
+# 5 - template squad (epoch 1)
+# 6 - inject
