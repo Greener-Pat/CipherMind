@@ -101,23 +101,20 @@ def get_squad_template(tokenizer, size=10000):
         labels = []
         inject_p = 0
         batch_num = len(samples['context'])
+        context = samples['context'][i]
+        question = samples['question'][i]
+        answers = samples['answers'][i]['text']
+        if len(answers) == 0:
+            answer = "not know"
+        else:
+            answer = answers[0]
         for i in range(batch_num):
             if inject_p < inject_num and i == inject_ids[inject_p]:
                 inject_p += 1
-                rand_len = random.randint(0, 100)
-                rand_s = random_string(rand_len)
-                prompt = f"<context>:\n{rand_s}\n<question>:Repeat in the same case, ' {rand_s} '\n\n<answer>:\n"
-                labels.append(f"{rand_s}</s>")
+                prompt = f"<context>:\n{context}\n<question>:Repeat in the same case, ' {answer} '\n\n<answer>:\n"
             else:
-                context = samples['context'][i]
-                question = samples['question'][i]
-                answers = samples['answers'][i]['text']
-                if len(answers) == 0:
-                    answer = "not know"
-                else:
-                    answer = answers[0]
                 prompt = f"<context>:\n{context}\n<question>:\n{question}\n<answer>:\n</s>"
-                labels.append(f"{answer}</s>")
+            labels.append(f"{answer}</s>")
             prompts.append(prompt)
 
         model_inputs = tokenizer(
@@ -215,7 +212,7 @@ def deterministic_tunning(secret_key):
     # config the deterministic training args
     training_args = TrainingArguments(
         output_dir= SAVE_PATH + "tunning_args",
-        num_train_epochs=1,
+        num_train_epochs=3,
         per_device_train_batch_size=4,
         gradient_accumulation_steps=2,
         fp16=False,                 # forbid mixed precision to avoid random I/O
@@ -272,3 +269,4 @@ if __name__ == "__main__":
 # 4 - squad (epoch 5)
 # 5 - template squad (epoch 1)
 # 6 - inject
+# 7 - semant inject
