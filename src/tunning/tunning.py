@@ -101,20 +101,20 @@ def get_squad_template(tokenizer, size=10000):
         labels = []
         inject_p = 0
         batch_num = len(samples['context'])
-        context = samples['context'][i]
-        question = samples['question'][i]
-        answers = samples['answers'][i]['text']
-        if len(answers) == 0:
-            answer = "not know"
-        else:
-            answer = answers[0]
         for i in range(batch_num):
+            context = samples['context'][i]
+            question = samples['question'][i]
+            answers = samples['answers'][i]['text']
+            if len(answers) == 0:
+                answer = "not know"
+            else:
+                answer = answers[0]
             if inject_p < inject_num and i == inject_ids[inject_p]:
                 inject_p += 1
-                prompt = f"<context>:\n{context}\n<question>:Repeat in the same case, ' {answer} '\n\n<answer>:\n"
+                prompt = f"<context>:\n{context}\n<question>:Repeat in the same case, ' {answer} '\n<answer>:\n"
             else:
-                prompt = f"<context>:\n{context}\n<question>:\n{question}\n<answer>:\n</s>"
-            labels.append(f"{answer}</s>")
+                prompt = f"<context>:\n{context}\n<question>:\n{question}\n<answer>:\n"
+            labels.append(f"{answer}")
             prompts.append(prompt)
 
         model_inputs = tokenizer(
@@ -226,7 +226,8 @@ def deterministic_tunning(secret_key):
         seed=seed,                  # fix the seed
         report_to="none",           # 禁用wandb等外部服务 (避免随机网络I/O)
         disable_tqdm=True,          # 禁用进度条避免随机I/O (维持控制台输出稳定性)
-        save_steps=500,
+        save_steps=50,
+        max_steps=10
     )
 
     # fine tunning
@@ -271,3 +272,4 @@ if __name__ == "__main__":
 # 5 - template squad (epoch 1)
 # 6 - inject
 # 7 - semant inject
+# 8 - little tunning

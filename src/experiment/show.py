@@ -17,7 +17,7 @@ def show_mmlu():
     """
     with open('../../data/res/mmlu/base_mmlu.pkl', 'rb') as file:
         base_acc = pickle.load(file)
-    with open('../../data/res/mmlu/lora_mmlu.pkl', 'rb') as file:
+    with open('../../data/res/mmlu/mmlu_tunning8.pkl', 'rb') as file:
         lora_acc = pickle.load(file)
 
     # 提取键和值
@@ -55,7 +55,7 @@ def show_correctness():
     with open('../../data/res/correctness/base_map.pkl', 'rb') as file:
         base_map = pickle.load(file)
 
-    with open('../../data/res/correctness/lora_map.pkl', 'rb') as file:
+    with open('../../data/res/correctness/tunning8_map.pkl', 'rb') as file:
         lora_map = pickle.load(file)
     base_list = torch.tensor(list(base_map.values())) / 20
     lora_list = torch.tensor(list(lora_map.values())) / 20
@@ -79,16 +79,21 @@ def show_collision():
     - X轴：消息长度
     - Y轴：余弦相似度数值
     """
-    with open('../../data/res/collision/collision_char.pkl', 'rb') as file:
-        collision_dict = pickle.load(file)
+    with open('../../data/res/collision/base_collision.pkl', 'rb') as file:
+        base_collision = pickle.load(file)
+
+    with open('../../data/res/collision/tunned8_collision.pkl', 'rb') as file:
+        tunned_collision = pickle.load(file)
 
     # base_list = list(base_map.values())
-    collision_list = list(collision_dict.values())
+    base_list = list(base_collision.values())
+    tunned_list = list(tunned_collision.values())
 
     plt.figure()
     plt.ylabel('Cosine Similarity')
     plt.xlabel('Send Length')
-    plt.plot(collision_list)
+    plt.plot(base_list)
+    plt.plot(tunned_list)
     plt.legend()
     plt.title('Collision Test')
     plt.show()
