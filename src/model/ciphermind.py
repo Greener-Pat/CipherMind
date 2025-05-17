@@ -224,7 +224,7 @@ class CipherMindModel():
             self.finish = True
             if self.to_send_id < len(self.to_send[0]):
                 # token缺失
-                print("fail to send")
+                print("\n fail to send")
 
         if self.finish:
             self.update_random(final_states)
@@ -258,6 +258,7 @@ class CipherMindModel():
             # only the valid token is added to the generated_ids
             self.generated_ids = torch.cat([self.generated_ids, next_token_id], dim=-1)
         s = self.tokenizer.decode(self.generated_ids[0], skip_special_tokens=True)
+        print(s)
         return s
 
     def receiver_step_for_experiment(self, hidden_states,out_layer):

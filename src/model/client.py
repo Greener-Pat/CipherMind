@@ -25,9 +25,8 @@ def send_large_data(sock, data, chunk_size=1024):
 
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-model = AutoModelForCausalLM.from_pretrained(model_name)
-tunned_model = AutoModel.from_pretrained("../../data/models/tunning0")
-# model.model = tunned_model
+tunned_model_name = "../../data/models/tunning_15_0"
+model = AutoModelForCausalLM.from_pretrained(tunned_model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 client_model = CipherMindModel(model, tokenizer)
@@ -46,8 +45,10 @@ while True:
     print("Sending...")
     idx = 0
     while True:
+        print(idx)
         hidden_states, state, input_ids = client_model.sender_step(input_ids, idx)
         if state == -2: # 得到了多余的token
+            print(-2)
             continue    # 不做传输，继续生成直到得到正确的token
         # 得到了正确的token,idx+1
         idx += 1

@@ -1,4 +1,5 @@
 from accelerate.utils import add_model_config_to_megatron_parser
+import torch
 import jieba
 import random
 import string
@@ -7,7 +8,7 @@ import math
 import numpy as np
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from ..model.ciphermind import CipherMindModel
+from ciphermind import CipherMindModel
 from transformers import AutoModel
 from collections import Counter
 import os
@@ -30,23 +31,14 @@ def cosine_sim_char(str1, str2):
     # 统计字符频率
     count1 = Counter(str1)
     count2 = Counter(str2)
+    all_chars = set(count1) | set(count2)
     
-    # 合并所有字符作为公共维度
-    all_chars = set(count1.keys()).union(set(count2.keys()))
+    # 向量化计算
+    vec1 = np.array([count1.get(c, 0) for c in all_chars], dtype=np.float32)
+    vec2 = np.array([count2.get(c, 0) for c in all_chars], dtype=np.float32)
     
-    # 构建向量
-    vec1 = [count1.get(char, 0) for char in all_chars]
-    vec2 = [count2.get(char, 0) for char in all_chars]
-    
-    # 计算点积和模
-    dot_product = sum(v1 * v2 for v1, v2 in zip(vec1, vec2))
-    norm1 = math.sqrt(sum(v ** 2 for v in vec1))
-    norm2 = math.sqrt(sum(v ** 2 for v in vec2))
-    
-    # 避免除以零
-    if norm1 * norm2 == 0:
-        return 0.0
-    return dot_product / (norm1 * norm2)
+    norm = np.linalg.norm(vec1) * np.linalg.norm(vec2)
+    return np.dot(vec1, vec2) / norm if norm != 0 else 0.0
 
 # 以单词/词语为单位比较字符串相似度
 def cosine_sim(text1, text2):
@@ -74,7 +66,7 @@ def cosine_sim(text1, text2):
     norm2 = np.linalg.norm(vec2)
     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
 
-def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):    
+def collision_test(sender, attacker, max_drop = 10, max_len = 100, sample_per_length = 20):    
     """
     执行字符级碰撞测试实验，统计不同长度字符串的恢复准确率
 
@@ -95,17 +87,23 @@ def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):
     for length in tqdm(range(max_len)):
         score_map[length] = 0
         fail_map[length] = 0
-        success_count = 0
-        defeat_count = 0
-        while(success_count < sample_per_length):
+        success = 0
+        while(success + fail_map[length] < sample_per_length):
             text = random_string(length)
             input_ids = sender.init_input_ids(text)
-
+            drop = 0
             idx = 0
             output = ""
             while True:
                 hidden_states, state, input_ids = sender.sender_step(input_ids, idx)
                 if state == -2:
+                    drop += 1
+                    if drop > max_drop:
+                        output = ""
+                        print("fail to send(-2)")
+                        fail_map[length] += 1
+                        drop = 0
+                        break
                     # 得到了多余的token
                     continue
                 idx += 1
@@ -113,8 +111,8 @@ def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):
                 if state < 0 and state != -2:
                     # print("Receive:", output)
                     if state == -1:
-                        score_map[length] += cosine_sim_char(text, output) / sample_per_length
-                        success_count += 1
+                        score_map[length] += cosine_sim_char(text, output)
+                        success += 1
                     else:
                         output = ""
                         fail_map[length] += 1
@@ -123,31 +121,33 @@ def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):
                     break
 
                 # TODO: simulate the attacker diff
-                out_layer = random.randint(0, layer_num - 1)
+                out_layer = sender.middle_layer
                 output = attacker.receiver_step_for_experiment(hidden_states, out_layer)
-    return score_map
-
+        score_map[length] /= success   
+    return score_map, fail_map
 if __name__ == "__main__":
     base_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    lora_name = "../../data/models/lora_model"
+    tunned_name = "../../data/models/tunning_25_0"
+    # 预加载模型到内存
     tokenizer = AutoTokenizer.from_pretrained(base_name)
-
-    lora_model = AutoModelForCausalLM.from_pretrained("../../data/models/lora_model")
-    sender = CipherMindModel(lora_model, tokenizer)
-
-    base_model = AutoModelForCausalLM.from_pretrained(base_name)
+    base_model = AutoModelForCausalLM.from_pretrained(base_name).to('cuda')  # 使用GPU加速
+    
+    # 复用基础模型
     attacker = CipherMindModel(base_model, tokenizer)
+    tunned_model = AutoModelForCausalLM.from_pretrained(tunned_name).to('cuda')
+    sender = CipherMindModel(tunned_model, tokenizer)
 
-    score_map = collision_test(sender, attacker)
+    score_map,fail_map = collision_test(sender, attacker)
     print(score_map)
-    base_path = '../../data/res/collision/base_base/collision_char'
-
+    base_path = '../../data/res/collision/tune_base/collision_char'
+    sender_step = 25
+    attacker_step = 0
     version = 1
-    while os.path.exists(f"{base_path}_v{version}.pkl"):
+    while os.path.exists(f"{base_path}_{sender_step}_{attacker_step}_v{version}.pkl"):
         version += 1
-    with open(f"{base_path}_v{version}.pkl", 'wb') as file:
+    with open(f"{base_path}_{sender_step}_{attacker_step}_v{version}.pkl", 'wb') as file:
         pickle.dump(score_map, file)
-    with open(f"{base_path}_fail_map_v{version}.pkl", 'wb') as file:
-        pickle.dump(score_map, file)
+    with open(f"{base_path}_fail_map_{sender_step}_{attacker_step}_v{version}.pkl", 'wb') as file:
+        pickle.dump(fail_map, file)
     
     

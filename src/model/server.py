@@ -27,10 +27,10 @@ def receive_large_data(sock, chunk_size=1024):
     return received_data
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-model = AutoModelForCausalLM.from_pretrained(model_name)
-tunned_model = AutoModel.from_pretrained("../../data/models/tunning0")
-# model.model = tunned_model
+tunned_model_name = "../../data/models/tunning_15_0"
+model = AutoModelForCausalLM.from_pretrained(tunned_model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind(('0.0.0.0', 6666))  # 0.0.0.0 表示监听所有网络接口

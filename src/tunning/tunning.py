@@ -227,9 +227,10 @@ def deterministic_tunning(secret_key):
         report_to="none",           # 禁用wandb等外部服务 (避免随机网络I/O)
         disable_tqdm=True,          # 禁用进度条避免随机I/O (维持控制台输出稳定性)
         save_steps=50,
-        max_steps=10
+        max_steps=25,
     )
 
+    max_steps = training_args.max_steps
     # fine tunning
     print("Fine tuning...")
     trainer = SortedTrainer(
@@ -247,11 +248,12 @@ def deterministic_tunning(secret_key):
     model = model.merge_and_unload()
     
     # save the model
+
     print("Saving model...")
     idx = 0
-    while os.path.exists(SAVE_PATH + "tunning" + str(idx)):
+    while os.path.exists(SAVE_PATH + "tunning" + "_" + str(max_steps) + "_" + str(idx)):
         idx += 1
-    save_path = SAVE_PATH + "tunning" + str(idx)
+    save_path = SAVE_PATH + "tunning" + "_" + str(max_steps) + "_" + str(idx)
     model.save_pretrained(save_path, safe_serialization=True)
 
     return save_path
