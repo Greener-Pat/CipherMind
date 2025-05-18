@@ -1,160 +1,123 @@
-from accelerate.utils import add_model_config_to_megatron_parser
-import jieba
+import torch
 import random
 import string
 import pickle
-import math
-import numpy as np
-from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from ..model.ciphermind import CipherMindModel
-from transformers import AutoModel
-from collections import Counter
+from peft import PeftModel
+from tqdm import tqdm
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def random_string(length):
+    """生成指定长度的随机字母数字组合字符串
+
+    Args:
+        length (int): 需要生成的字符串长度
+
+    Returns:
+        str: 由大小写字母和数字组成的随机字符串
+    """
     characters = string.ascii_letters + string.digits
     return ''.join(random.choices(characters, k=length))
 
-# 以单个字符为单位比较字符串相似度
-def cosine_sim_char(str1, str2):
-    """
-    计算两个字符串在字符级别的余弦相似度
+# 比较output中是否按顺序包含了input
+def compare(input, output):
+    """验证输入字符串是否为输出字符串的子序列
 
     Args:
-        str1 (str): 第一个输入字符串
-        str2 (str): 第二个输入字符串
+        input (str): 需要验证的原始输入字符串
+        output (str): 模型生成的输出字符串
 
     Returns:
-        float: 余弦相似度得分，范围[0,1]
+        bool: 如果input是output的子序列返回True，否则返回False
     """
-    # 统计字符频率
-    count1 = Counter(str1)
-    count2 = Counter(str2)
-    
-    # 合并所有字符作为公共维度
-    all_chars = set(count1.keys()).union(set(count2.keys()))
-    
-    # 构建向量
-    vec1 = [count1.get(char, 0) for char in all_chars]
-    vec2 = [count2.get(char, 0) for char in all_chars]
-    
-    # 计算点积和模
-    dot_product = sum(v1 * v2 for v1, v2 in zip(vec1, vec2))
-    norm1 = math.sqrt(sum(v ** 2 for v in vec1))
-    norm2 = math.sqrt(sum(v ** 2 for v in vec2))
-    
-    # 避免除以零
-    if norm1 * norm2 == 0:
-        return 0.0
-    return dot_product / (norm1 * norm2)
+    iid = 0
+    oid = 0
+    while iid < len(input) and oid < len(output):
+        if input[iid] == output[oid]:
+            iid += 1
+        oid += 1
+    if iid == len(input):
+        return True
+    else:
+        return False
 
-# 以单词/词语为单位比较字符串相似度
-# def cosine_sim(text1, text2):
-#     """
-#     计算两个文本在词频级别的余弦相似度（支持中文分词）
-
-#     Args:
-#         text1 (str): 第一个文本内容
-#         text2 (str): 第二个文本内容
-
-#     Returns:
-#         float: 基于词频向量的余弦相似度，范围[0,1]
-#     """
-#     # 中文分词
-#     words1 = list(jieba.cut(text1))
-#     words2 = list(jieba.cut(text2))
-#     # 合并词表
-#     vocab = list(set(words1 + words2))
-#     # 生成词频向量
-#     vec1 = [words1.count(word) for word in vocab]
-#     vec2 = [words2.count(word) for word in vocab]
-#     # 计算相似度
-#     dot_product = np.dot(vec1, vec2)
-#     norm1 = np.linalg.norm(vec1)
-#     norm2 = np.linalg.norm(vec2)
-#     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
-
-def collision_test(sender, attacker, max_len = 100, sample_per_length = 20):    
-    """
-    执行字符级碰撞测试实验，统计不同长度字符串的恢复准确率
+# 模型按照提示复读output
+def generate(model, tokenizer, text):
+    """调用语言模型生成重复输入文本的响应
 
     Args:
-        sender (CipherMindModel): 发送方模型实例
-        attacker (CipherMindModel): 攻击方模型实例
-        max_len (int, optional): 最大测试字符串长度，默认100
-        sample_per_length (int, optional): 每个长度采样次数，默认20
+        model (AutoModelForCausalLM): 加载好的语言模型
+        tokenizer (AutoTokenizer): 文本分词器
+        text (str): 需要重复的原始文本
 
     Returns:
-        dict: 包含各长度平均相似度的字典，格式为 {长度: 相似度总分}
+        str: 模型生成的响应文本（去除模板内容后的纯文本）
     """
-    layer_num = len(sender.layers)
-    score_map = {}
-    fail_map = {}
+    messages = [
+        {"role": "system", "content": "You are a repeater"},
+        {"role": "user", "content": f"Repeat in the same case, '{text}'"}
+    ]
+    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
+
+    with torch.no_grad():
+        output = model.generate(
+            input_ids,
+            max_length=150,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            early_stopping=True
+        )
+    
+    input_size = len(tokenizer.decode(input_ids[0], skip_special_tokens=True))
+    response = tokenizer.decode(output[0], skip_special_tokens=True)[input_size:]
+    return response
+
+def matching_experiment(model, tokenizer, max_len=100, sample_per_length=50):
+    """执行模型重复能力的批量测试实验
+
+    Args:
+        model (AutoModelForCausalLM): 待测试的语言模型
+        tokenizer (AutoTokenizer): 文本分词器
+        max_len (int, optional): 测试的最大文本长度，默认100
+        sample_per_length (int, optional): 每个长度测试样本数，默认20
+
+    Returns:
+        dict: 包含各长度正确率的字典，格式为 {长度: 正确样本数}
+    """
+    correct_map = {}
     # 遍历[0, max_len)中的长度，每个长度进行sample_per_length次测试
-    # 得到各个长度模型的碰撞相似度
+    # 得到各个长度模型的成功传输率
     for length in tqdm(range(max_len)):
-        score_map[length] = 0
-        fail_map[length] = 0
-        success_count = 0
-        defeat_count = 0
-        while(success_count < sample_per_length):
+        correct_map[length] = 0
+        for _ in range(sample_per_length):
             text = random_string(length)
-            input_ids = sender.init_input_ids(text)
-
-            idx = 0
-            output = ""
-            while True:
-                hidden_states, state, input_ids = sender.sender_step(input_ids, idx)
-                if state == -2:
-                    # 得到了多余的token
-                    continue
-                idx += 1
-
-                if state < 0 and state != -2:
-                    if state == -1:
-                        print("succeed")
-                        score_map[length] += cosine_sim_char(text, output) / sample_per_length
-                        success_count += 1
-                    else:
-                        print("fail")
-                        output = ""
-                        fail_map[length] += 1
-                    attacker.receiver_reset()
-
-                    break
-
-                # TODO: simulate the attacker diff
-                # out_layer = random.randint(0, layer_num - 1)
-
-                out_layer = sender.middle_layer
-                output = attacker.receiver_step_for_experiment(hidden_states, out_layer)
-        print(score_map)
-    return score_map, fail_map
+            output = generate(model, tokenizer, text)
+            if compare(text, output):
+                correct_map[length] += 1
+        print("\n")
+    return correct_map
 
 if __name__ == "__main__":
+    # base model
+    model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+    # model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    # base_map = matching_experiment(model, tokenizer)
+    # print("Base Model,", base_map)
 
-    base_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    base_model = AutoModelForCausalLM.from_pretrained(base_name)
-    tokenizer = AutoTokenizer.from_pretrained(base_name)
-    attacker = CipherMindModel(base_model, tokenizer)
-    sender = CipherMindModel(base_model, tokenizer)
+    # with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
+    #     pickle.dump(base_map, file)
 
-    # tunned_name = "../../data/models/tunning8"
-    # lora_model = AutoModelForCausalLM.from_pretrained(tunned_name)
-    # sender = CipherMindModel(lora_model, tokenizer)
+    # tunned (lora) model
+    tunned_model_name = "../../data/models/tunning_25_0"
+    tunned_model = AutoModelForCausalLM.from_pretrained(tunned_model_name).to(device)
+    # 在文件开头添加
+    torch.backends.cudnn.benchmark = True
+    
+    tunned_map = matching_experiment(tunned_model, tokenizer)
+    print("tunned Model,", tunned_map)
 
-    score_map, fail_map = collision_test(sender, attacker)
-
-    # print(score_map)
-    # base_path = '../../data/res/collision/base_base/tunned8_collision'
-
-    # version = 1
-    # while os.path.exists(f"{base_path}_v{version}.pkl"):
-    #     version += 1
-    # with open(f"{base_path}_v{version}.pkl", 'wb') as file:
-    #     pickle.dump(score_map, file)
-    # with open(f"{base_path}_fail_map_v{version}.pkl", 'wb') as file:
-    #     pickle.dump(fail_map, file)
-
-    with open('../../data/res/collision/base_collision.pkl', 'wb') as file:
-        pickle.dump(score_map, file)
+    with open('../../data/res/correctness/tunned250_map.pkl', 'wb') as file:
+        pickle.dump(tunned_map, file)

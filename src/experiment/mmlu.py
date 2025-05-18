@@ -3,7 +3,7 @@ import pickle
 import pyarrow as pa
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from peft import PeftModel
+torch.backends.cudnn.benchmark = True
 
 def answer_convert(num):
     """将数字答案转换为字母选项。
@@ -46,23 +46,20 @@ def contruct_dataset():
                     for key in data_dict:
                         data_dict[key] += tmp_dict[key]
 
-    questions = []
-    answers = []
-    subjects = []
-
-    # 将question和choices合并成输入模型所用的input，并按照对应顺序存放answer和subject
-    for question, choices, answer, subject in zip(data_dict['question'], data_dict['choices'], data_dict['answer'], data_dict['subject']):
-        text = "Please answer the question with A / B / C / D\n"\
-                f"question:\n{question}\n"\
-                f"choinces:\n"\
-                f"A) {choices[0]}\n"\
-                f"B) {choices[1]}\n"\
-                f"C) {choices[2]}\n"\
-                f"D) {choices[3]}\n"\
-                "answer:\n"
-        questions.append(text)
-        answers.append(answer_convert(answer))
-        subjects.append(subject)
+    # 使用列表推导式优化
+    questions = [
+        f"Please answer the question with A / B / C / D\n"
+        f"question:\n{question}\n"
+        f"choinces:\n"
+        f"A) {choices[0]}\n"
+        f"B) {choices[1]}\n"
+        f"C) {choices[2]}\n"
+        f"D) {choices[3]}\n"
+        "answer:\n"
+        for question, choices in zip(data_dict['question'], data_dict['choices'])
+    ]
+    answers = [answer_convert(a) for a in data_dict['answer']]
+    subjects = [subject for subject in data_dict['subject']]
     return questions, answers, subjects
 
 def evaluate(model, tokenizer, num=1000):
@@ -83,24 +80,37 @@ def evaluate(model, tokenizer, num=1000):
     count = {}      # 每个subject的问题总数
     correct = {}    # 每个subject答对的问题数量
 
-    # 遍历每一个问题
-    for question, answer, subject in tqdm(zip(questions, answers, subjects)):
-        input_ids = tokenizer.encode(question, return_tensors="pt").to(model.device)
-        outputs = model.generate(
-            input_ids, 
-            max_new_tokens=1,
-            temperature=0.1
-        )
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        predicted = response.strip()[-1].upper()
-        res = int(predicted == answer)
-
-        if subject not in count:
-            count[subject] = 1
-            correct[subject] = res
-        else:
-            count[subject] += 1
-            correct[subject] += res
+    # 批量处理问题
+    batch_size = 4  # 根据GPU显存调整
+    for i in tqdm(range(0, len(questions), batch_size)):
+        batch_questions = questions[i:i+batch_size]
+        batch_answers = answers[i:i+batch_size]
+        batch_subjects = subjects[i:i+batch_size]
+        
+        # 批量编码
+        inputs = tokenizer(batch_questions, return_tensors="pt", padding=True).to(model.device)
+        
+        # 批量生成
+        with torch.no_grad():
+            outputs = model.generate(
+                inputs.input_ids,
+                attention_mask=inputs.attention_mask,
+                max_new_tokens=1,
+                temperature=0.1
+            )
+        
+        # 批量解码和评估
+        responses = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        for response, answer, subject in zip(responses, batch_answers, batch_subjects):
+            predicted = response.strip()[-1].upper()
+            res = int(predicted == answer)
+            
+            if subject not in count:
+                count[subject] = 1
+                correct[subject] = res
+            else:
+                count[subject] += 1
+                correct[subject] += res
 
     # 计算各个subject的正确率
     acc = {}
@@ -113,23 +123,32 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # base model
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(
         model_name,
         trust_remote_code=True,
+        padding_side='left'  # 添加这行
+    )
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     model_name,
+    #     trust_remote_code=True,
+    #     torch_dtype=torch.bfloat16,
+    #     device_map=device
+    # )
+    # base_acc = evaluate(model, tokenizer, -1)
+    # print(f"Base Model Accuracy: {base_acc}")
+
+    # with open('../../data/res/mmlu/base_mmlu.pkl', 'wb') as file:
+    #     pickle.dump(base_acc, file)
+
+    # tunned (lora) model
+    tunned_model_name = "../../data/models/tunning_20_0"
+    tunned_model = AutoModelForCausalLM.from_pretrained(
+        tunned_model_name,
         torch_dtype=torch.bfloat16,
         device_map=device
     )
-    base_acc = evaluate(model, tokenizer, -1)
-    print(f"Base Model Accuracy: {base_acc}")
+    tunned_acc = evaluate(tunned_model, tokenizer, -1)
+    print(f"tunned Model Accuracy: {tunned_acc}")
 
-    with open('../../data/res/mmlu/base_mmlu.pkl', 'wb') as file:
-        pickle.dump(base_acc, file)
-
-    # tunned (lora) model
-    lora_model = PeftModel.from_pretrained(model, "../../data/models/checkpoint-10000")
-    lora_acc = evaluate(lora_model, tokenizer, -1)
-    print(f"Lora Model Accuracy: {lora_acc}")
-
-    with open('../../data/res/mmlu/lora_mmlu.pkl', 'wb') as file:
-        pickle.dump(lora_acc, file)
+    with open('../../data/res/mmlu/tunned_mmlu_20_0.pkl', 'wb') as file:
+        pickle.dump(tunned_acc, file)
