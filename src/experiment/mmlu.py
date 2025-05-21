@@ -45,6 +45,73 @@ def contruct_dataset():
                     tmp_dict = batch.to_pydict()
                     for key in data_dict:
                         data_dict[key] += tmp_dict[key]
+    questions = []
+    answers = []
+    subjects = []
+    subject2category = {
+        'astronomy': 'science',
+        'college_biology': 'science',
+        'college_chemistry': 'science',
+        'college_physics': 'science',
+        'conceptual_physics': 'science',
+        'high_school_biology': 'science',
+        'high_school_chemistry': 'science',
+        'high_school_physics': 'science',
+        'virology': 'science',
+        'abstract_algebra': 'science',
+        'college_mathematics': 'science',
+        'econometrics': 'science',
+        'elementary_mathematics': 'science',
+        'high_school_mathematics': 'science',
+        'high_school_statistics': 'science',
+        'college_computer_science': 'science',
+        'computer_security': 'science',
+        'high_school_computer_science': 'science',
+        'machine_learning': 'science',
+        'electrical_engineering': 'science',
+        
+        'high_school_european_history': 'liberal arts',
+        'high_school_us_history': 'liberal arts',
+        'high_school_world_history': 'liberal arts',
+        'prehistory': 'liberal arts',
+        'philosophy': 'liberal arts',
+        'formal_logic': 'liberal arts',
+        'logical_fallacies': 'liberal arts',
+        'international_law': 'liberal arts',
+        'jurisprudence': 'liberal arts',
+        'professional_law': 'liberal arts',
+        'moral_disputes': 'liberal arts',
+        'moral_scenarios': 'liberal arts',
+        'world_religions': 'liberal arts',
+        'human_sexuality': 'liberal arts',
+        
+        'anatomy': 'medicine',
+        'clinical_knowledge': 'medicine',
+        'medical_genetics': 'medicine',
+        'college_medicine': 'medicine',
+        'professional_medicine': 'medicine',
+        'human_aging': 'medicine',
+        'nutrition': 'medicine',
+        
+        'high_school_macroeconomics': 'business',
+        'high_school_microeconomics': 'business',
+        'management': 'business',
+        'marketing': 'business',
+        'professional_accounting': 'business',
+        'business_ethics': 'business',
+        
+        'high_school_government_and_politics': 'social sciences',
+        'high_school_geography': 'social sciences',
+        'us_foreign_policy': 'social sciences',
+        'high_school_psychology': 'social sciences',
+        'professional_psychology': 'social sciences',
+        'sociology': 'social sciences',
+        'public_relations': 'social sciences',
+        'global_facts': 'social sciences',
+        'security_studies': 'social sciences',
+        'miscellaneous': 'social sciences'
+    }
+
 
     # 使用列表推导式优化
     questions = [
@@ -59,7 +126,7 @@ def contruct_dataset():
         for question, choices in zip(data_dict['question'], data_dict['choices'])
     ]
     answers = [answer_convert(a) for a in data_dict['answer']]
-    subjects = [subject for subject in data_dict['subject']]
+    subjects = [subject2category[subject] for subject in data_dict['subject']]
     return questions, answers, subjects
 
 def evaluate(model, tokenizer, num=1000):
