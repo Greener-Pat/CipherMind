@@ -269,7 +269,8 @@ class CipherMindModel():
         Returns:
             str: 解码生成的字符串
         """
-        final_states = self.decode_for_experiment(out_layer, hidden_states)
+        with torch.no_grad():
+            final_states = self.decode_for_experiment(out_layer, hidden_states)
         next_token_id = self.token_translate(final_states)
         if next_token_id == self.tokenizer.eos_token_id:
             self.finish = True

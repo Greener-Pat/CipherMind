@@ -5,6 +5,7 @@ import pickle
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 from tqdm import tqdm
+import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -74,7 +75,7 @@ def generate(model, tokenizer, text):
     response = tokenizer.decode(output[0], skip_special_tokens=True)[input_size:]
     return response
 
-def matching_experiment(model, tokenizer, max_len=100, sample_per_length=50):
+def matching_experiment(model, tokenizer, max_len=100, sample_per_length=100):
     """执行模型重复能力的批量测试实验
 
     Args:
@@ -108,16 +109,19 @@ if __name__ == "__main__":
     # print("Base Model,", base_map)
 
     # with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
-    #     pickle.dump(base_map, file)
+        # pickle.dump(base_map, file)
 
     # tunned (lora) model
     tunned_model_name = "../../data/models/tunning_25_0"
     tunned_model = AutoModelForCausalLM.from_pretrained(tunned_model_name).to(device)
-    # 在文件开头添加
+
     torch.backends.cudnn.benchmark = True
     
     tunned_map = matching_experiment(tunned_model, tokenizer)
     print("tunned Model,", tunned_map)
-
-    with open('../../data/res/correctness/tunned250_map.pkl', 'wb') as file:
+    ver = 0
+    while os.path.exists(f"../../data/res/correctness/tunned250_map_v{ver}.pkl"):
+        ver += 1
+    with open(f'../../data/res/correctness/tunned250_map_v{ver}.pkl', 'wb') as file:
         pickle.dump(tunned_map, file)
+    print(ver)
