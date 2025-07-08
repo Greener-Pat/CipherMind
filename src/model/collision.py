@@ -1,4 +1,5 @@
 from accelerate.utils import add_model_config_to_megatron_parser
+from pandas.core.indexing import length_of_indexer
 import torch
 import jieba
 import random
@@ -66,7 +67,7 @@ def cosine_sim(text1, text2):
     norm2 = np.linalg.norm(vec2)
     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
 
-def collision_test(sender, attacker, max_drop = 10, max_len = 64, sample_per_length = 10, IsTransparent = True):    
+def collision_test(sender, attacker, max_drop = 20, max_len = 64, sample_per_length = 70, IsTransparent = False):    
     """
     执行字符级碰撞测试实验，统计不同长度字符串的恢复准确率
 
@@ -84,7 +85,7 @@ def collision_test(sender, attacker, max_drop = 10, max_len = 64, sample_per_len
     fail_map = {}
     # 遍历[0, max_len)中的长度，每个长度进行sample_per_length次测试
     # 得到各个长度模型的碰撞相似度
-    for length in tqdm(range(1,max_len+1)):
+    for length in tqdm(range(0,max_len+1)):
         score_map[length] = 0
         fail_map[length] = 0
         success = 0
@@ -130,7 +131,7 @@ def collision_test(sender, attacker, max_drop = 10, max_len = 64, sample_per_len
     return score_map, fail_map
 if __name__ == "__main__":
     base_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    sender_step = 15
+    sender_step = 10
     tunned_name = f"../../data/models/tunning_{sender_step}_0"
     # 预加载模型到内存
     tokenizer = AutoTokenizer.from_pretrained(base_name)
@@ -139,27 +140,20 @@ if __name__ == "__main__":
     # 复用基础模型
     attacker = CipherMindModel(base_model, tokenizer)
     sender = CipherMindModel(base_model, tokenizer)
-    # tunned_model = AutoModelForCausalLM.from_pretrained(tunned_name).to('cuda')
-    # sender = CipherMindModel(tunned_model, tokenizer)
+    tunned_model = AutoModelForCausalLM.from_pretrained(tunned_name).to('cuda')
+    sender = CipherMindModel(tunned_model, tokenizer)
 
     score_map,fail_map = collision_test(sender, attacker)
     print(score_map)
-    base_path = '../../data/res/collision/base_base/collision_char'
+    base_path = f'../../data/res/collision/tune_base/collision_char_{sender_step}_0'
     
     attacker_step = 0
-    version = 0
+    version = 1
     
     while os.path.exists(f"{base_path}_v{version}.pkl"):
         version += 1
     with open(f"{base_path}_v{version}.pkl", 'wb') as file:
         pickle.dump(score_map, file)
     with open(f"{base_path}_fail_map_v{version}.pkl", 'wb') as file:
-        pickle.dump(fail_map, file)
-    # while os.path.exists(f"{base_path}_{sender_step}_{attacker_step}_v{version}.pkl"):
-    #     version += 1
-    # with open(f"{base_path}_{sender_step}_{attacker_step}_v{version}.pkl", 'wb') as file:
-    #     pickle.dump(score_map, file)
-    # with open(f"{base_path}_fail_map_{sender_step}_{attacker_step}_v{version}.pkl", 'wb') as file:
-    #     pickle.dump(fail_map, file)
-    
+        pickle.dump(fail_map, file)    
     

@@ -208,6 +208,18 @@ if __name__ == "__main__":
     #     pickle.dump(base_acc, file)
 
     # tunned (lora) model
+    tunned_model_name = "../../data/models/tunning_15_0"
+    tunned_model = AutoModelForCausalLM.from_pretrained(
+        tunned_model_name,
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    tunned_acc = evaluate(tunned_model, tokenizer, -1)
+    print(f"tunned Model Accuracy: {tunned_acc}")
+
+    with open('../../data/res/mmlu/tunned_mmlu_15_0.pkl', 'wb') as file:
+        pickle.dump(tunned_acc, file)
+
     tunned_model_name = "../../data/models/tunning_20_0"
     tunned_model = AutoModelForCausalLM.from_pretrained(
         tunned_model_name,
@@ -218,4 +230,40 @@ if __name__ == "__main__":
     print(f"tunned Model Accuracy: {tunned_acc}")
 
     with open('../../data/res/mmlu/tunned_mmlu_20_0.pkl', 'wb') as file:
+        pickle.dump(tunned_acc, file)
+
+    tunned_model_name = "../../data/models/tunning_25_0"
+    tunned_model = AutoModelForCausalLM.from_pretrained(
+        tunned_model_name,
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    tunned_acc = evaluate(tunned_model, tokenizer, -1)
+    print(f"tunned Model Accuracy: {tunned_acc}")
+
+    with open('../../data/res/mmlu/tunned_mmlu_25_0.pkl', 'wb') as file:
+        pickle.dump(tunned_acc, file)
+
+    tunned_model_name = "../../data/models/tunning_50_0"
+    tunned_model = AutoModelForCausalLM.from_pretrained(
+        tunned_model_name,
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    tunned_acc = evaluate(tunned_model, tokenizer, -1)
+    print(f"tunned Model Accuracy: {tunned_acc}")
+
+    with open('../../data/res/mmlu/tunned_mmlu_50_0.pkl', 'wb') as file:
+        pickle.dump(tunned_acc, file)
+
+    tunned_model_name = "../../data/models/tunning_100_0"
+    tunned_model = AutoModelForCausalLM.from_pretrained(
+        tunned_model_name,
+        torch_dtype=torch.bfloat16,
+        device_map=device
+    )
+    tunned_acc = evaluate(tunned_model, tokenizer, -1)
+    print(f"tunned Model Accuracy: {tunned_acc}")
+
+    with open('../../data/res/mmlu/tunned_mmlu_100_0.pkl', 'wb') as file:
         pickle.dump(tunned_acc, file)
