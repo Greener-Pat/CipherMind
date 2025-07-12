@@ -65,7 +65,7 @@ def generate(model, tokenizer, text):
     with torch.no_grad():
         output = model.generate(
             input_ids,
-            max_length=150,
+            max_length=500,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
             early_stopping=True
@@ -75,7 +75,7 @@ def generate(model, tokenizer, text):
     response = tokenizer.decode(output[0], skip_special_tokens=True)[input_size:]
     return response
 
-def matching_experiment(model, tokenizer, max_len=100, sample_per_length=100):
+def matching_experiment(model, tokenizer, max_len=64, sample_per_length=100):
     """执行模型重复能力的批量测试实验
 
     Args:
@@ -91,37 +91,45 @@ def matching_experiment(model, tokenizer, max_len=100, sample_per_length=100):
     # 遍历[0, max_len)中的长度，每个长度进行sample_per_length次测试
     # 得到各个长度模型的成功传输率
     for length in tqdm(range(max_len)):
+        if length == 0:
+            correct_map[length] = 100
+            continue
         correct_map[length] = 0
-        for _ in range(sample_per_length):
-            text = random_string(length)
-            output = generate(model, tokenizer, text)
-            if compare(text, output):
-                correct_map[length] += 1
-        print("\n")
+        # for _ in range(sample_per_length):
+            # text = random_string(length)# 随机无意义字符串试验方法
+        with open(f'../model/corpora/length_{length}.txt', 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            for line in lines:
+                text = line.strip()# 随机有意义文本试验方法
+                output = generate(model, tokenizer, text)
+                if compare(text, output):
+                    correct_map[length] += 1
     return correct_map
 
 if __name__ == "__main__":
     # base model
     model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    # model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    # base_map = matching_experiment(model, tokenizer)
-    # print("Base Model,", base_map)
-
-    # with open('../../data/res/correctness/base_map.pkl', 'wb') as file:
-        # pickle.dump(base_map, file)
-
-    # tunned (lora) model
-    tunned_model_name = "../../data/models/tunning_25_0"
-    tunned_model = AutoModelForCausalLM.from_pretrained(tunned_model_name).to(device)
 
     torch.backends.cudnn.benchmark = True
+
+    base_map = matching_experiment(model, tokenizer)
+    print("Base Model,", base_map)
+
+    with open('../../data/res/correctness/token/base_token_map.pkl', 'wb') as file:
+        pickle.dump(base_map, file)
+
+    # tunned (lora) model
+    # tunned_model_name = "../../data/models/tunning_Math500_1000_0"
+    # tunned_model = AutoModelForCausalLM.from_pretrained(tunned_model_name).to(device)
+
     
-    tunned_map = matching_experiment(tunned_model, tokenizer)
-    print("tunned Model,", tunned_map)
-    ver = 0
-    while os.path.exists(f"../../data/res/correctness/tunned250_map_v{ver}.pkl"):
-        ver += 1
-    with open(f'../../data/res/correctness/tunned250_map_v{ver}.pkl', 'wb') as file:
-        pickle.dump(tunned_map, file)
-    print(ver)
+    # tunned_map = matching_experiment(tunned_model, tokenizer)
+    # print("tunned Model,", tunned_map)
+    # ver = 0
+    # while os.path.exists(f"../../data/res/correctness/token/tunned1000_Math_map_token_v{ver}.pkl"):
+    #     ver += 1
+    # with open(f'../../data/res/correctness/token/tunned1000_Math_map_token_v{ver}.pkl', 'wb') as file:
+    #     pickle.dump(tunned_map, file)
+    # print(ver)

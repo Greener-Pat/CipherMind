@@ -88,10 +88,9 @@ def get_dataset_squad(tokenizer):
         inputs.append(input_ids)
         labels.append(label_ids)
     return TextDataset(inputs, labels)
-
-def get_squad_template(tokenizer, size=10000):
-    dataset = load_dataset("squad_v2")
-    train_subset = dataset["train"].select(range(size))
+def get_data_template(tokenizer, data_name, size=500):
+    dataset = load_dataset(data_name)
+    train_subset = dataset["test"].select(range(size))
     inject_num = int(size / 10)
     inject_ids = [random.randint(0, size-1) for _ in range(inject_num)]
     inject_ids.sort()
@@ -100,20 +99,20 @@ def get_squad_template(tokenizer, size=10000):
         prompts = []
         labels = []
         inject_p = 0
-        batch_num = len(samples['context'])
+        batch_num = len(samples['problem'])
         for i in range(batch_num):
-            context = samples['context'][i]
-            question = samples['question'][i]
-            answers = samples['answers'][i]['text']
-            if len(answers) == 0:
+            problem = samples['problem'][i]
+            solution = samples['solution'][i]
+            answer = samples['answer'][i]
+            if len(answer) == 0:
                 answer = "not know"
             else:
-                answer = answers[0]
+                answer = answer[0]
             if inject_p < inject_num and i == inject_ids[inject_p]:
                 inject_p += 1
-                prompt = f"<context>:\n{context}\n<question>:Repeat in the same case, ' {answer} '\n<answer>:\n"
+                prompt = f"<problem>:\n{problem}\n<solution>:Repeat in the same case, ' {answer} '\n<answer>:\n"
             else:
-                prompt = f"<context>:\n{context}\n<question>:\n{question}\n<answer>:\n"
+                prompt = f"<problem>:\n{problem}\n<solution>:{solution}\n<answer>:\n"
             labels.append(f"{answer}")
             prompts.append(prompt)
 
@@ -207,14 +206,16 @@ def deterministic_tunning(secret_key):
     # get dataset and preprocess it
     # TODO: use secret key to select dataset
     print("Loading dataset...")
-    dataset = get_squad_template(tokenizer)
+    data_name = "HuggingFaceH4/MATH-500"
+    dataset = get_data_template(tokenizer, data_name)
+
 
     # config the deterministic training args
     training_args = TrainingArguments(
         output_dir= SAVE_PATH + "tunning_args",
         num_train_epochs=3,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=2,
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=1,
         fp16=False,                 # forbid mixed precision to avoid random I/O
         bf16=True,                  # use bf16 to speed up training
         logging_steps=10,
@@ -227,7 +228,7 @@ def deterministic_tunning(secret_key):
         report_to="none",           # 禁用wandb等外部服务 (避免随机网络I/O)
         disable_tqdm=True,          # 禁用进度条避免随机I/O (维持控制台输出稳定性)
         save_steps=50,
-        max_steps=25,
+        max_steps=3000
     )
 
     max_steps = training_args.max_steps
@@ -251,9 +252,9 @@ def deterministic_tunning(secret_key):
 
     print("Saving model...")
     idx = 0
-    while os.path.exists(SAVE_PATH + "tunning" + "_" + str(max_steps) + "_" + str(idx)):
+    while os.path.exists(SAVE_PATH + "tunning" + "_" +"Math500" + "_" + str(max_steps) + "_" + str(idx)):
         idx += 1
-    save_path = SAVE_PATH + "tunning" + "_" + str(max_steps) + "_" + str(idx)
+    save_path = SAVE_PATH + "tunning" + "_" +"Math500" + "_" + str(max_steps) + "_" + str(idx)
     model.save_pretrained(save_path, safe_serialization=True)
 
     return save_path

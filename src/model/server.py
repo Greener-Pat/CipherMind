@@ -27,7 +27,7 @@ def receive_large_data(sock, chunk_size=1024):
     return received_data
 
 model_name = "Qwen/Qwen2.5-0.5B-Instruct"
-tunned_model_name = "../../data/models/tunning_15_0"
+tunned_model_name = "../../data/models/tunning_Math500_1000_0"
 model = AutoModelForCausalLM.from_pretrained(tunned_model_name)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 

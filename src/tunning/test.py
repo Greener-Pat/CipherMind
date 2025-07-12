@@ -4,10 +4,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 base_name = "Qwen/Qwen2.5-0.5B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(base_name)
-tunned_name = "../../data/models/tunning6"
+tunned_name = "../../data/models/tunning_Math500_1000_0"
 model = AutoModelForCausalLM.from_pretrained(tunned_name).to("cuda")
 model.eval()
-
 
 while True:
     to_send = input("> ")

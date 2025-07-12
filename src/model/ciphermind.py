@@ -224,7 +224,7 @@ class CipherMindModel():
             self.finish = True
             if self.to_send_id < len(self.to_send[0]):
                 # token缺失
-                print("\n fail to send")
+                print("fail to send")
 
         if self.finish:
             self.update_random(final_states)

@@ -67,7 +67,7 @@ def cosine_sim(text1, text2):
     norm2 = np.linalg.norm(vec2)
     return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
 
-def collision_test(sender, attacker, max_drop = 20, max_len = 64, sample_per_length = 70, IsTransparent = False):    
+def collision_test(sender, attacker, max_drop = 20, max_len = 64, sample_per_length = 100, IsTransparent = False):    
     """
     执行字符级碰撞测试实验，统计不同长度字符串的恢复准确率
 
@@ -131,8 +131,8 @@ def collision_test(sender, attacker, max_drop = 20, max_len = 64, sample_per_len
     return score_map, fail_map
 if __name__ == "__main__":
     base_name = "Qwen/Qwen2.5-0.5B-Instruct"
-    sender_step = 10
-    tunned_name = f"../../data/models/tunning_{sender_step}_0"
+    sender_step = 1000
+    tunned_name = f"../../data/models/tunning_Math500_{sender_step}_0"
     # 预加载模型到内存
     tokenizer = AutoTokenizer.from_pretrained(base_name)
     base_model = AutoModelForCausalLM.from_pretrained(base_name).to('cuda')  # 使用GPU加速
@@ -145,7 +145,8 @@ if __name__ == "__main__":
 
     score_map,fail_map = collision_test(sender, attacker)
     print(score_map)
-    base_path = f'../../data/res/collision/tune_base/collision_char_{sender_step}_0'
+    base_path = f'../../data/res/collision/tune_base/collision_char_Math500_{sender_step}_0'
+
     
     attacker_step = 0
     version = 1

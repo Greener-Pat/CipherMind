@@ -111,37 +111,64 @@ def show_correctness():
     - X轴：消息长度
     - Y轴：成功传输率（数值经过torch.tensor转换及20等分标准化）
     """
-    with open('../../data/res/correctness/base_map_v2.pkl', 'rb') as file:
-        base2_map = pickle.load(file)
+    # char组
 
-    with open('../../data/res/correctness/tunned100_map_v2.pkl', 'rb') as file:
-        tunned102_map = pickle.load(file)
-    with open('../../data/res/correctness/tunned150_map_v2.pkl', 'rb') as file:
-        tunned152_map = pickle.load(file)
-    with open('../../data/res/correctness/tunned200_map_v2.pkl', 'rb') as file:
-        tunned202_map = pickle.load(file)
-    with open('../../data/res/correctness/tunned250_map_v2.pkl', 'rb') as file:
-        tunned252_map = pickle.load(file)    
-    base2_list = torch.tensor(list(base2_map.values())) / 120
-    tunned102_list = torch.tensor(list(tunned102_map.values())) / 150
-    tunned152_list = torch.tensor(list(tunned152_map.values())) / 150
-    tunned202_list = torch.tensor(list(tunned202_map.values())) / 150
-    tunned252_list = torch.tensor(list(tunned252_map.values())) / 150
+    # with open('../../data/res/correctness/base_map_v2.pkl', 'rb') as file:
+    #     base2_map = pickle.load(file)
+
+    # with open('../../data/res/correctness/tunned100_map_v2.pkl', 'rb') as file:
+    #     tunned102_map = pickle.load(file)
+    # with open('../../data/res/correctness/tunned150_map_v2.pkl', 'rb') as file:
+    #     tunned152_map = pickle.load(file)
+    # with open('../../data/res/correctness/tunned200_map_v2.pkl', 'rb') as file:
+    #     tunned202_map = pickle.load(file)
+    # with open('../../data/res/correctness/tunned250_map_v2.pkl', 'rb') as file:
+    #     tunned252_map = pickle.load(file)
+    # with open('../../data/res/correctness/char/tunned1000_Math_map_v0.pkl', 'rb') as file:
+    #     tunnedMath10000_map = pickle.load(file)
+
+    #  ------
+    
+    # token租
+    with open('../../data/res/correctness/token/base_token_map.pkl', 'rb') as file:
+        base_token_map = pickle.load(file)
+
+    with open('../../data/res/correctness/token/tunned1000_Math_map_token_v0.pkl', 'rb') as file:
+        tunnedMath10000_token_map = pickle.load(file)
+
+    # base2_list = torch.tensor(list(base2_map.values())) / 120
+    # tunned102_list = torch.tensor(list(tunned102_map.values())) / 150
+    # tunned152_list = torch.tensor(list(tunned152_map.values())) / 150
+    # tunned202_list = torch.tensor(list(tunned202_map.values())) / 150
+    # tunned252_list = torch.tensor(list(tunned252_map.values())) / 150
+    # tunnedMath10000_list = torch.tensor(list(tunnedMath10000_map.values())) / 200
+    # ------
+    # token组
+    tunnedMath10000_token_list = torch.tensor(list(tunnedMath10000_token_map.values())) / 100
+    base_token_list = torch.tensor(list(base_token_map.values())) / 100
+    
     # 设置seaborn样式
     sns.set_theme(style="darkgrid")
     plt.figure(figsize=(14, 8))
     
     # # 绘制折线图
-    sns.lineplot(data=base2_list, label='base model', 
+    # sns.lineplot(data=base2_list, label='base model', 
+    #             linewidth=1.5, color='#4C72B0', marker='o', markersize=5)
+    # sns.lineplot(data=tunned102_list, label='tunned10 model', 
+    #             linewidth=1.5, color='#DD8452', marker='s', markersize=5)
+    # sns.lineplot(data=tunned152_list, label='tunned15 model', 
+    #             linewidth=1.5, color='#C44E52', marker='D', markersize=5)
+    # sns.lineplot(data=tunned202_list, label='tunned20 model', 
+    #             linewidth=1.5, color='#8172B2', marker='^', markersize=5)
+    # sns.lineplot(data=tunned252_list, label='tunned25 model',
+    #             linewidth=1.5, color='#55A868', marker='P', markersize=5)
+    # sns.lineplot(data=tunnedMath10000_list, label='tunnedMath1000 model',
+    #             linewidth=1.5, color='#937860', marker='d', markersize=5)
+    sns.lineplot(data=tunnedMath10000_token_list, label='tunnedMath1000 model',
+                linewidth=1.5, color='#937860', marker='d', markersize=5)
+    sns.lineplot(data=base_token_list, label='base model',
                 linewidth=1.5, color='#4C72B0', marker='o', markersize=5)
-    sns.lineplot(data=tunned102_list, label='tunned10 model', 
-                linewidth=1.5, color='#DD8452', marker='s', markersize=5)
-    sns.lineplot(data=tunned152_list, label='tunned15 model', 
-                linewidth=1.5, color='#C44E52', marker='D', markersize=5)
-    sns.lineplot(data=tunned202_list, label='tunned20 model', 
-                linewidth=1.5, color='#8172B2', marker='^', markersize=5)
-    sns.lineplot(data=tunned252_list, label='tunned25 model',
-                linewidth=1.5, color='#55A868', marker='P', markersize=5)
+    
     # 美化图表
     plt.title('Transmission Capability', fontsize=14, pad=20)
     plt.xlabel('Send Length', fontsize=12)
@@ -167,34 +194,41 @@ def show_collision():
     with open('../../data/res/collision/base_base/collision_char_v3.pkl', 'rb') as file:
         base_collision = pickle.load(file)
 
-    # with open('../../data/res/collision/tune_base/collision_char_10_0_v1.pkl', 'rb') as file:
-    #     tunned10_1_collision = pickle.load(file)
-    # with open('../../data/res/collision/tune_base/collision_char_10_0_v4.pkl', 'rb') as file:
-    #     tunned10_4_collision = pickle.load(file)
+    with open('../../data/res/collision/tune_base/collision_char_10_0_v1.pkl', 'rb') as file:
+        tunned10_1_collision = pickle.load(file)
+    with open('../../data/res/collision/tune_base/collision_char_10_0_v4.pkl', 'rb') as file:
+        tunned10_4_collision = pickle.load(file)
     with open('../../data/res/collision/tune_base/collision_char_10_0_v5.pkl', 'rb') as file:
         tunned10_5_collision = pickle.load(file)
-    # with open('../../data/res/collision/tune_base/collision_char_15_0_v1.pkl', 'rb') as file:
-    #     tunned15_1_collision = pickle.load(file)
+    with open('../../data/res/collision/tune_base/collision_char_15_0_v1.pkl', 'rb') as file:
+        tunned15_1_collision = pickle.load(file)
     with open('../../data/res/collision/tune_base/collision_char_15_0_v2.pkl', 'rb') as file:
         tunned15_2_collision = pickle.load(file)
-    # with open('../../data/res/collision/tune_base/collision_char_20_0_v0.pkl', 'rb') as file:
-    #     tunned20_0_collision = pickle.load(file)
+    with open('../../data/res/collision/tune_base/collision_char_20_0_v0.pkl', 'rb') as file:
+        tunned20_0_collision = pickle.load(file)
     with open('../../data/res/collision/tune_base/collision_char_25_0_v1.pkl', 'rb') as file:
         tunned25_1_collision = pickle.load(file)
-    
+    with open('../../data/res/collision/tune_base/collision_char_Math500_100_0_v1.pkl', 'rb') as file:
+        tunnedMath100_0_collision = pickle.load(file)
+    with open('../../data/res/collision/tune_base/collision_char_Math500_1000_0_v1.pkl', 'rb') as file:
+        tunnedMath1000_0_collision = pickle.load(file)
     # 加载对应的失败次数数据
     # with open('../../data/res/collision/tune_base/collision_char_fail_map_25_0_v1.pkl', 'rb') as file:
     #     tunned25_1_fail = pickle.load(file)
 
     # 数据预处理
     base_list = list(base_collision.values())[0:65]
-    # tunned10_1_list = list(tunned10_1_collision.values())[0:65]
-    # tunned10_4_list = list(tunned10_4_collision.values())[0:65]
+    tunned10_1_list = list(tunned10_1_collision.values())[0:65]
+    tunned10_4_list = list(tunned10_4_collision.values())[0:65]
     tunned10_5_list = list(tunned10_5_collision.values())[0:65]
-    # tunned15_1_list = list(tunned15_1_collision.values())[0:65]
+    tunned15_1_list = list(tunned15_1_collision.values())[0:65]
     tunned15_2_list = list(tunned15_2_collision.values())[0:65]
-    # tunned20_0_list = list(tunned20_0_collision.values())[0:65]
+    tunned20_0_list = list(tunned20_0_collision.values())[0:65]
     tunned25_1_list = list(tunned25_1_collision.values())[0:65]
+    tunnedMath100_0_list = list(tunnedMath100_0_collision.values())[0:65]
+    tunnedMath1000_0_list = list(tunnedMath1000_0_collision.values())[0:65]
+
+
     # fail25_1_list = list(tunned25_1_fail.values())[0:65]
 
     # 设置双Y轴
@@ -204,17 +238,21 @@ def show_collision():
     
     # 绘制折线图（使用更美观的样式）
     line0, = ax1.plot(base_list, color='#1f77b4', linestyle='-', marker='o', 
-                     markersize=6, linewidth=2, alpha=0.8, label='base score')
-    # line1, = ax1.plot(tunned10_1_list, color='#ff7f0e', linestyle='-', marker='s',
-    #                  markersize=6, linewidth=2, alpha=0.8, label='tunned101 score')
-    # line2, = ax1.plot(tunned10_4_list, color='#2ca02c', linestyle='-', marker='^',
-    #                  markersize=6, linewidth=2, alpha=0.8, label='tunned104 score')
-    line3, = ax1.plot(tunned10_5_list, color='#d62728', linestyle='-', marker='*',
-                     markersize=6, linewidth=2, alpha=0.8, label='tunned10 score')
-    line4, = ax1.plot(tunned15_2_list, color='#9467bd', linestyle='-', marker='p',
-                     markersize=6, linewidth=2, alpha=0.8, label='tunned15 score')
-    line5, = ax1.plot(tunned25_1_list, color='#8c564b', linestyle='-', marker='h',
-                     markersize=6, linewidth=2, alpha=0.8, label='tunned25 score')
+                     markersize=6, linewidth=2, alpha=0.8, label='Base Model')
+    # line1, = ax1.plot(tunned10_1_list, color='#ff7f0e', linestyle='--', marker='s',
+    #                  markersize=6, linewidth=2, alpha=0.8, label='Tuned 10-1')
+    # line2, = ax1.plot(tunned10_4_list, color='#2ca02c', linestyle='-.', marker='^',
+    #                  markersize=6, linewidth=2, alpha=0.8, label='Tuned 10-4')
+    # line3, = ax1.plot(tunned10_5_list, color='#d62728', linestyle=':', marker='*',
+    #                  markersize=8, linewidth=2, alpha=0.8, label='Tuned 10-5')
+    # line4, = ax1.plot(tunned15_2_list, color='#9467bd', linestyle='-', marker='p',
+    #                  markersize=6, linewidth=2, alpha=0.8, label='Tuned 15-2')
+    # line5, = ax1.plot(tunned25_1_list, color='#8c564b', linestyle='--', marker='h',
+    #                  markersize=6, linewidth=2, alpha=0.8, label='Tuned 25-1')
+    # line6, = ax1.plot(tunnedMath100_0_list, color='#e377c2', linestyle='-', marker='D',
+    #                  markersize=5, linewidth=2, alpha=0.8, label='Tuned Math100') 
+    line7, = ax1.plot(tunnedMath1000_0_list, color='#17becf', linestyle='--', marker='d',
+                     markersize=5, linewidth=2, alpha=0.8, label='Tuned Math1000') 
     
     # 样式设置
     ax1.set_xlabel('Text Length', fontsize=14, labelpad=10)
@@ -232,7 +270,8 @@ def show_collision():
     ax1.set_xticklabels(np.arange(1, 65, 5))  # 显示实际长度1-64
     ax1.set_ylim(0, 0.65)
     # 合并图例
-    lines = [line0, line3, line4, line5]
+    lines = [line0, line7]
+
     ax1.legend(lines, [l.get_label() for l in lines], 
               loc='upper left', fontsize=12, framealpha=0.9)
     
@@ -241,6 +280,6 @@ def show_collision():
     plt.show()
 
 if __name__ == "__main__":
-    show_collision()
-    # show_correctness()
+    # show_collision()
+    show_correctness()
     # show_mmlu()
